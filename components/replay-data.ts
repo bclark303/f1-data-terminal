@@ -3,11 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CarDataPoint, LocationPoint } from "@/lib/types";
 
-const CHUNK_MS = 60_000;
-const TELEMETRY_LEAD_IN_MS = 20_000;
-const LOCATION_LEAD_IN_MS = 5_000;
-const TRACK_SAMPLE_MS = 150_000;
-
 const clientCache = new Map<string, Promise<unknown>>();
 
 async function fetchCached<T>(url: string): Promise<T> {
@@ -26,22 +21,16 @@ async function fetchCached<T>(url: string): Promise<T> {
   return pending;
 }
 
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}
-
-function buildUrl(mode: string, sessionKey: number, from: number, to: number, driver?: number) {
+function buildUrl(mode: "telemetry" | "track", sessionKey: number, driverNumber: number) {
   const params = new URLSearchParams({
     mode,
     sessionKey: String(sessionKey),
-    from: new Date(from).toISOString(),
-    to: new Date(to).toISOString(),
+    driver: String(driverNumber),
   });
-  if (driver) params.set("driver", String(driver));
   return `/api/replay-data?${params.toString()}`;
 }
 
-function useRemoteWindow<T>(url: string | null) {
+function useRemoteData<T>(url: string | null) {
   const [settled, setSettled] = useState<{ url: string | null; data: T[]; error: string | null }>({
     url: null,
     data: [],
@@ -81,65 +70,28 @@ function useRemoteWindow<T>(url: string | null) {
   };
 }
 
-export function useTelemetryWindow({
-  sessionKey,
-  raceTime,
-  sessionStart,
-  sessionEnd,
-}: {
-  sessionKey: number;
-  raceTime: number;
-  sessionStart: number;
-  sessionEnd: number;
-}) {
-  const url = useMemo(() => {
-    const chunkStart = sessionStart + Math.floor(Math.max(0, raceTime - sessionStart) / CHUNK_MS) * CHUNK_MS;
-    const from = clamp(chunkStart - TELEMETRY_LEAD_IN_MS, sessionStart, sessionEnd);
-    const to = clamp(chunkStart + CHUNK_MS, sessionStart, sessionEnd);
-    return buildUrl("telemetry", sessionKey, from, to);
-  }, [sessionKey, raceTime, sessionStart, sessionEnd]);
-
-  return useRemoteWindow<CarDataPoint>(url);
+/**
+ * OpenF1's historical high-rate endpoints are most reliable when queried by
+ * session + driver. Fetch the selected driver's complete telemetry once and
+ * seek through it locally; switching back to that driver is then instant.
+ */
+export function useDriverTelemetry(sessionKey: number, driverNumber: number) {
+  const url = useMemo(
+    () => driverNumber ? buildUrl("telemetry", sessionKey, driverNumber) : null,
+    [sessionKey, driverNumber],
+  );
+  return useRemoteData<CarDataPoint>(url);
 }
 
-export function useLocationWindow({
-  sessionKey,
-  raceTime,
-  sessionStart,
-  sessionEnd,
-}: {
-  sessionKey: number;
-  raceTime: number;
-  sessionStart: number;
-  sessionEnd: number;
-}) {
-  const url = useMemo(() => {
-    const chunkStart = sessionStart + Math.floor(Math.max(0, raceTime - sessionStart) / CHUNK_MS) * CHUNK_MS;
-    const from = clamp(chunkStart - LOCATION_LEAD_IN_MS, sessionStart, sessionEnd);
-    const to = clamp(chunkStart + CHUNK_MS, sessionStart, sessionEnd);
-    return buildUrl("locations", sessionKey, from, to);
-  }, [sessionKey, raceTime, sessionStart, sessionEnd]);
-
-  return useRemoteWindow<LocationPoint>(url);
-}
-
-export function useTrackGeometry({
-  sessionKey,
-  driverNumber,
-  sessionStart,
-  sessionEnd,
-}: {
-  sessionKey: number;
-  driverNumber: number;
-  sessionStart: number;
-  sessionEnd: number;
-}) {
-  const url = useMemo(() => {
-    if (!driverNumber) return null;
-    const from = sessionStart;
-    const to = Math.min(sessionEnd, sessionStart + TRACK_SAMPLE_MS);
-    return buildUrl("track", sessionKey, from, to, driverNumber);
-  }, [sessionKey, driverNumber, sessionStart, sessionEnd]);
-
-  return useRemoteWindow<LocationPoint>(url);
+/**
+ * One driver's full-session location stream is enough to recover a clean lap
+ * and construct the circuit geometry. Field positions are derived from lap
+ * progress so we do not need twenty simultaneous 3.7 Hz location streams.
+ */
+export function useTrackGeometry(sessionKey: number, driverNumber: number) {
+  const url = useMemo(
+    () => driverNumber ? buildUrl("track", sessionKey, driverNumber) : null,
+    [sessionKey, driverNumber],
+  );
+  return useRemoteData<LocationPoint>(url);
 }
