@@ -18,5 +18,15 @@ export default async function Home() {
     openF1.stints(session.session_key),
   ]);
 
-  return <Terminal session={session} drivers={drivers} weather={weather} raceControl={raceControl} positions={positions} intervals={intervals} laps={laps} stints={stints} />;
+  const firstLapStart = laps
+    .filter((lap) => lap.lap_number === 1 && lap.date_start)
+    .map((lap) => lap.date_start as string)
+    .sort()[0];
+
+  // OpenF1's scheduled session start can precede the first actual high-rate
+  // telemetry/location samples by a few minutes. For replay purposes, anchor
+  // the clock to the first recorded Lap 1 start so telemetry is available at t=0.
+  const replaySession = firstLapStart ? { ...session, date_start: firstLapStart } : session;
+
+  return <Terminal session={replaySession} drivers={drivers} weather={weather} raceControl={raceControl} positions={positions} intervals={intervals} laps={laps} stints={stints} />;
 }
