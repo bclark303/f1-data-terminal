@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./windowing.css";
 
 export const metadata: Metadata = {
   title: "F1 Data Terminal",
