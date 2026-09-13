@@ -1,49 +1,34 @@
-function visibleArea(video) {
-  const rect = video.getBoundingClientRect();
-  const width = Math.max(0, Math.min(rect.right, innerWidth) - Math.max(rect.left, 0));
-  const height = Math.max(0, Math.min(rect.bottom, innerHeight) - Math.max(rect.top, 0));
-  return width * height;
+const PROBE_SOURCE = "F1_DATA_TERMINAL_VIDEO_PROBE";
+const TERMINAL_SOURCE = "F1_DATA_TERMINAL_EXTENSION";
+const isTerminal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window || event.data?.source !== PROBE_SOURCE) return;
+
+  if (event.data.found && event.data.state) {
+    chrome.runtime.sendMessage({
+      type: "F1_VIDEO_STATE",
+      state: event.data.state,
+    }).catch(() => {
+      // Extension context can briefly disappear during navigation/reload.
+    });
+  } else {
+    chrome.runtime.sendMessage({
+      type: "F1_VIDEO_STATUS",
+      found: false,
+      capturedAt: event.data.capturedAt ?? Date.now(),
+    }).catch(() => {});
+  }
+});
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (!isTerminal || message?.type !== "F1_VIDEO_STATE_TO_TERMINAL") return;
+  window.postMessage({
+    source: TERMINAL_SOURCE,
+    state: message.state,
+  }, location.origin);
+});
+
+if (isTerminal) {
+  chrome.runtime.sendMessage({ type: "F1_TERMINAL_READY" }).catch(() => {});
 }
-
-function selectVideo() {
-  const videos = [...document.querySelectorAll("video")];
-  if (!videos.length) return null;
-
-  return videos
-    .map((video) => ({ video, area: visibleArea(video) }))
-    .filter(({ video }) => Number.isFinite(video.currentTime))
-    .sort((a, b) => {
-      // Prefer the largest visible player. If neither is currently visible,
-      // prefer the one with the longest duration as the likely main program.
-      if (a.area !== b.area) return b.area - a.area;
-      return (Number.isFinite(b.video.duration) ? b.video.duration : 0) - (Number.isFinite(a.video.duration) ? a.video.duration : 0);
-    })[0]?.video ?? null;
-}
-
-function sendState() {
-  const video = selectVideo();
-  if (!video) return;
-
-  chrome.runtime.sendMessage({
-    type: "F1_VIDEO_STATE",
-    state: {
-      currentTime: video.currentTime,
-      duration: Number.isFinite(video.duration) ? video.duration : null,
-      paused: video.paused,
-      playbackRate: video.playbackRate,
-      title: document.title,
-      url: location.href,
-      capturedAt: Date.now(),
-    },
-  }).catch(() => {
-    // The extension context can briefly disappear during navigation/reload.
-  });
-}
-
-const events = ["play", "pause", "seeking", "seeked", "ratechange", "waiting", "playing", "loadedmetadata"];
-for (const eventName of events) {
-  document.addEventListener(eventName, sendState, true);
-}
-
-setInterval(sendState, 250);
-sendState();
