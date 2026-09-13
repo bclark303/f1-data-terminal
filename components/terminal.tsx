@@ -17,7 +17,7 @@ import { formatLap, latestAt } from "@/lib/time";
 import { Panel } from "./panel";
 import { ReplayControls } from "./replay-controls";
 import { ReplayClockProvider, useReplayClock } from "./replay-clock";
-import { useLocationWindow, useTelemetryWindow, useTrackGeometry } from "./replay-data";
+import { useDriverTelemetry, useTrackGeometry } from "./replay-data";
 
 type TerminalProps = {
   session: Session;
@@ -35,24 +35,8 @@ function TerminalContent({ session, drivers, weather, raceControl, positions, in
   const [selectedDriver, setSelectedDriver] = useState(drivers[0]?.driver_number ?? 0);
   const geometryDriver = drivers[0]?.driver_number ?? 0;
 
-  const telemetry = useTelemetryWindow({
-    sessionKey: session.session_key,
-    raceTime: clock.raceTime,
-    sessionStart: clock.sessionStart,
-    sessionEnd: clock.sessionEnd,
-  });
-  const locationWindow = useLocationWindow({
-    sessionKey: session.session_key,
-    raceTime: clock.raceTime,
-    sessionStart: clock.sessionStart,
-    sessionEnd: clock.sessionEnd,
-  });
-  const trackGeometry = useTrackGeometry({
-    sessionKey: session.session_key,
-    driverNumber: geometryDriver,
-    sessionStart: clock.sessionStart,
-    sessionEnd: clock.sessionEnd,
-  });
+  const telemetry = useDriverTelemetry(session.session_key, selectedDriver);
+  const trackGeometry = useTrackGeometry(session.session_key, geometryDriver);
 
   const byDriver = useMemo(() => {
     const group = <T extends { driver_number: number }>(items: T[]) => {
@@ -72,6 +56,12 @@ function TerminalContent({ session, drivers, weather, raceControl, positions, in
       stints: group(stints),
     };
   }, [positions, intervals, laps, stints]);
+
+  const geometryLap = useMemo(() => {
+    return (byDriver.laps.get(geometryDriver) ?? [])
+      .filter((lap) => lap.date_start && lap.lap_duration && !lap.is_pit_out_lap)
+      .sort((a, b) => (a.lap_duration ?? Infinity) - (b.lap_duration ?? Infinity))[0] ?? null;
+  }, [byDriver, geometryDriver]);
 
   const state = useMemo(() => {
     const currentWeather = latestAt(weather, (row) => row.date, clock.raceTime);
@@ -155,20 +145,21 @@ function TerminalContent({ session, drivers, weather, raceControl, positions, in
               <Metric label="Tyre" value={selected.currentStint?.compound ?? "—"} />
               <Metric label="Stint" value={selected.currentStint ? `#${selected.currentStint.stint_number}` : "—"} />
             </div>
-            <TelemetryPanel data={telemetry.data.filter((point) => point.driver_number === selected.driver.driver_number)} raceTime={clock.raceTime} loading={telemetry.loading} error={telemetry.error} teamColour={selected.driver.team_colour} />
+            <TelemetryPanel data={telemetry.data} raceTime={clock.raceTime} loading={telemetry.loading} error={telemetry.error} teamColour={selected.driver.team_colour} />
           </>}
         </Panel>
 
-        <Panel title="Virtual Track" kicker="LIVE XY POSITION" className="trackPanel">
+        <Panel title="Virtual Track" kicker="VIRTUAL RACE POSITION" className="trackPanel">
           <VirtualTrack
             drivers={drivers}
-            locations={locationWindow.data}
+            lapsByDriver={byDriver.laps}
             geometry={trackGeometry.data}
+            geometryLap={geometryLap}
             raceTime={clock.raceTime}
             selectedDriver={selectedDriver}
             onSelect={setSelectedDriver}
-            loading={locationWindow.loading || trackGeometry.loading}
-            error={locationWindow.error ?? trackGeometry.error}
+            loading={trackGeometry.loading}
+            error={trackGeometry.error}
           />
         </Panel>
 
@@ -236,7 +227,7 @@ function TelemetryPanel({
     <div className="telemetryHeading">
       <span>CAR TELEMETRY</span>
       <span className={error ? "dataState error" : loading ? "dataState loading" : "dataState live"}>
-        {error ? "ERROR" : loading ? "LOADING" : current ? "REPLAY DATA" : "NO SAMPLE"}
+        {error ? "ERROR" : loading ? "LOADING DRIVER DATA" : current ? "REPLAY DATA" : "NO SAMPLE"}
       </span>
     </div>
     {error && <div className="dataError">{error}</div>}
@@ -314,6 +305,12 @@ type Projection = {
   y: (value: number) => number;
 };
 
+type TrackModel = {
+  points: LocationPoint[];
+  cumulative: number[];
+  total: number;
+};
+
 function makeProjection(points: LocationPoint[]): Projection | null {
   if (!points.length) return null;
   const xs = points.map((point) => point.x);
@@ -337,10 +334,70 @@ function makeProjection(points: LocationPoint[]): Projection | null {
   };
 }
 
+function makeTrackModel(points: LocationPoint[]): TrackModel | null {
+  if (points.length < 2) return null;
+  const cumulative = [0];
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y);
+    cumulative.push(total);
+  }
+  if (total <= 0) return null;
+  return { points, cumulative, total };
+}
+
+function pointAtProgress(model: TrackModel, progress: number) {
+  const target = Math.max(0, Math.min(0.9999, progress)) * model.total;
+  let low = 0;
+  let high = model.cumulative.length - 1;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (model.cumulative[mid] < target) low = mid + 1;
+    else high = mid;
+  }
+  const right = Math.max(1, low);
+  const left = right - 1;
+  const startDistance = model.cumulative[left];
+  const segment = Math.max(1, model.cumulative[right] - startDistance);
+  const t = (target - startDistance) / segment;
+  return {
+    x: model.points[left].x + (model.points[right].x - model.points[left].x) * t,
+    y: model.points[left].y + (model.points[right].y - model.points[left].y) * t,
+  };
+}
+
+function lapProgressAt(laps: Lap[], raceTime: number) {
+  const timed = laps.filter((lap) => lap.date_start).sort((a, b) => Date.parse(a.date_start!) - Date.parse(b.date_start!));
+  let index = -1;
+  for (let i = timed.length - 1; i >= 0; i -= 1) {
+    if (Date.parse(timed[i].date_start!) <= raceTime) {
+      index = i;
+      break;
+    }
+  }
+  if (index < 0) return null;
+
+  const lap = timed[index];
+  const start = Date.parse(lap.date_start!);
+  const nextStart = timed[index + 1]?.date_start ? Date.parse(timed[index + 1].date_start!) : null;
+  const durationMs = nextStart && nextStart > start
+    ? nextStart - start
+    : lap.lap_duration
+      ? lap.lap_duration * 1000
+      : null;
+  if (!durationMs || durationMs <= 0) return null;
+
+  // If there is no following lap and the car has been stopped for a while,
+  // remove it from the virtual circuit rather than pinning it to start/finish.
+  if (!nextStart && raceTime > start + durationMs + 12_000) return null;
+  return Math.max(0, Math.min(0.9999, (raceTime - start) / durationMs));
+}
+
 function VirtualTrack({
   drivers,
-  locations,
+  lapsByDriver,
   geometry,
+  geometryLap,
   raceTime,
   selectedDriver,
   onSelect,
@@ -348,43 +405,56 @@ function VirtualTrack({
   error,
 }: {
   drivers: Driver[];
-  locations: LocationPoint[];
+  lapsByDriver: Map<number, Lap[]>;
   geometry: LocationPoint[];
+  geometryLap: Lap | null;
   raceTime: number;
   selectedDriver: number;
   onSelect: (driver: number) => void;
   loading: boolean;
   error: string | null;
 }) {
-  const byDriver = useMemo(() => {
-    const grouped = new Map<number, LocationPoint[]>();
-    for (const point of locations) {
-      const bucket = grouped.get(point.driver_number);
-      if (bucket) bucket.push(point);
-      else grouped.set(point.driver_number, [point]);
+  const circuitPoints = useMemo(() => {
+    if (!geometry.length) return [];
+    if (!geometryLap?.date_start || !geometryLap.lap_duration) return geometry.filter((_, index) => index % 10 === 0);
+    const start = Date.parse(geometryLap.date_start);
+    const end = start + geometryLap.lap_duration * 1000;
+    const lapPoints = geometry.filter((point) => {
+      const timestamp = Date.parse(point.date);
+      return timestamp >= start && timestamp <= end;
+    });
+    return lapPoints.filter((_, index) => index % 2 === 0);
+  }, [geometry, geometryLap]);
+
+  const projection = useMemo(() => makeProjection(circuitPoints), [circuitPoints]);
+  const trackModel = useMemo(() => makeTrackModel(circuitPoints), [circuitPoints]);
+
+  const currentPoints = useMemo(() => {
+    if (!trackModel) return [];
+    return drivers.map((driver) => {
+      const progress = lapProgressAt(lapsByDriver.get(driver.driver_number) ?? [], raceTime);
+      if (progress === null) return null;
+      return { driver, current: pointAtProgress(trackModel, progress) };
+    }).filter(Boolean) as { driver: Driver; current: { x: number; y: number } }[];
+  }, [drivers, lapsByDriver, raceTime, trackModel]);
+
+  const selectedTrail = useMemo(() => {
+    if (!trackModel) return [];
+    const driverLaps = lapsByDriver.get(selectedDriver) ?? [];
+    const points: { x: number; y: number }[] = [];
+    for (let delta = 6000; delta >= 0; delta -= 750) {
+      const progress = lapProgressAt(driverLaps, raceTime - delta);
+      if (progress !== null) points.push(pointAtProgress(trackModel, progress));
     }
-    return grouped;
-  }, [locations]);
-
-  const projectionSource = geometry.length >= 10 ? geometry : locations;
-  const projection = useMemo(() => makeProjection(projectionSource), [projectionSource]);
-  const currentPoints = useMemo(() => drivers.map((driver) => {
-    const samples = byDriver.get(driver.driver_number) ?? [];
-    const current = latestAt(samples, (row) => row.date, raceTime);
-    return current ? { driver, current } : null;
-  }).filter(Boolean) as { driver: Driver; current: LocationPoint }[], [drivers, byDriver, raceTime]);
-
-  const selectedTrail = useMemo(() => (byDriver.get(selectedDriver) ?? []).filter((point) => {
-    const timestamp = Date.parse(point.date);
-    return timestamp <= raceTime && timestamp >= raceTime - 6000;
-  }), [byDriver, selectedDriver, raceTime]);
+    return points;
+  }, [lapsByDriver, selectedDriver, raceTime, trackModel]);
 
   const trackPath = useMemo(() => {
-    if (!projection || geometry.length < 2) return "";
-    return geometry.filter((_, index) => index % 2 === 0).map((point, index) =>
+    if (!projection || circuitPoints.length < 2) return "";
+    return circuitPoints.map((point, index) =>
       `${index === 0 ? "M" : "L"}${projection.x(point.x).toFixed(1)},${projection.y(point.y).toFixed(1)}`,
-    ).join(" ");
-  }, [geometry, projection]);
+    ).join(" ") + " Z";
+  }, [circuitPoints, projection]);
 
   const trailPath = useMemo(() => {
     if (!projection || selectedTrail.length < 2) return "";
@@ -393,8 +463,8 @@ function VirtualTrack({
     ).join(" ");
   }, [projection, selectedTrail]);
 
-  if (!projection) {
-    return <div className="trackCanvas emptyTrack">{error ? error : loading ? "Loading circuit position data…" : "No position data at this replay time."}</div>;
+  if (!projection || !trackModel) {
+    return <div className="trackCanvas emptyTrack">{error ? error : loading ? "Loading circuit geometry…" : "No circuit geometry available."}</div>;
   }
 
   return <div className="trackCanvas">
@@ -428,7 +498,7 @@ function VirtualTrack({
     </svg>
     <div className="trackLegend">
       <span>{currentPoints.length}/{drivers.length} cars plotted</span>
-      <span>{loading ? "BUFFERING POSITION WINDOW" : "3.7 Hz POSITION DATA"}</span>
+      <span>{loading ? "LOADING GEOMETRY" : "XY CIRCUIT + LAP-TIMING POSITION"}</span>
     </div>
     {error && <div className="trackError">{error}</div>}
   </div>;
