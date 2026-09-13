@@ -23,6 +23,18 @@ const MIN_WIDTH = 280;
 const MIN_HEIGHT = 220;
 let topZ = 20;
 
+const DEFAULTS: Record<string, PanelLayout> = {
+  timingPanel: { x: 12, y: 12, width: 560, height: 742 },
+  driverPanel: { x: 584, y: 12, width: 420, height: 365 },
+  trackPanel: { x: 1016, y: 12, width: 420, height: 365 },
+  controlPanel: { x: 584, y: 389, width: 420, height: 365 },
+  weatherPanel: { x: 1016, y: 389, width: 420, height: 365 },
+};
+
+function keyFromClass(className: string) {
+  return Object.keys(DEFAULTS).find((key) => className.split(/\s+/).includes(key)) ?? "panel";
+}
+
 function storageKey(id: string) {
   return `f1-terminal-panel:${id}:v1`;
 }
@@ -49,21 +61,23 @@ export function Panel({
   className = "",
   children,
 }: {
-  id: string;
-  defaultLayout: PanelLayout;
+  id?: string;
+  defaultLayout?: PanelLayout;
   title: string;
   kicker?: string;
   actions?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
 }) {
+  const layoutId = id ?? keyFromClass(className);
+  const initialLayout = defaultLayout ?? DEFAULTS[keyFromClass(className)] ?? { x: 12, y: 12, width: 420, height: 320 };
   const panelRef = useRef<HTMLElement>(null);
   const interactionRef = useRef<Interaction | null>(null);
-  const [layout, setLayout] = useState(defaultLayout);
+  const [layout, setLayout] = useState(initialLayout);
   const [zIndex, setZIndex] = useState(1);
 
   useEffect(() => {
-    const saved = localStorage.getItem(storageKey(id));
+    const saved = localStorage.getItem(storageKey(layoutId));
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as PanelLayout;
@@ -72,17 +86,17 @@ export function Panel({
           setLayout(clampLayout(parsed, workspace));
         }
       } catch {
-        localStorage.removeItem(storageKey(id));
+        localStorage.removeItem(storageKey(layoutId));
       }
     }
 
     const reset = () => {
-      localStorage.removeItem(storageKey(id));
-      setLayout(defaultLayout);
+      localStorage.removeItem(storageKey(layoutId));
+      setLayout(initialLayout);
     };
     window.addEventListener("f1-terminal-reset-layout", reset);
     return () => window.removeEventListener("f1-terminal-reset-layout", reset);
-  }, [id, defaultLayout]);
+  }, [layoutId, initialLayout.x, initialLayout.y, initialLayout.width, initialLayout.height]);
 
   useEffect(() => {
     const handleMove = (event: PointerEvent) => {
@@ -117,7 +131,7 @@ export function Panel({
       if (!interactionRef.current) return;
       interactionRef.current = null;
       setLayout((current) => {
-        localStorage.setItem(storageKey(id), JSON.stringify(current));
+        localStorage.setItem(storageKey(layoutId), JSON.stringify(current));
         return current;
       });
       document.body.classList.remove("panelInteracting");
@@ -131,7 +145,7 @@ export function Panel({
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [id]);
+  }, [layoutId]);
 
   const beginInteraction = (
     event: ReactPointerEvent,
