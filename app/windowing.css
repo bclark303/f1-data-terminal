@@ -1,0 +1,118 @@
+/* Floating terminal windows */
+.terminalGrid {
+  position: relative;
+  display: block;
+  min-height: 778px;
+  height: calc(100vh - 92px);
+  max-height: 980px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.floatingPanel {
+  position: absolute;
+  min-width: 280px;
+  min-height: 220px;
+  margin: 0;
+}
+
+.floatingPanel .panelDragHandle {
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.panelInteracting,
+.panelInteracting * {
+  user-select: none !important;
+}
+.panelInteracting .panelDragHandle { cursor: grabbing; }
+
+.panelResize {
+  position: absolute;
+  display: block;
+  z-index: 8;
+  touch-action: none;
+}
+.panelResize-n, .panelResize-s { left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+.panelResize-n { top: -4px; }
+.panelResize-s { bottom: -4px; }
+.panelResize-e, .panelResize-w { top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+.panelResize-e { right: -4px; }
+.panelResize-w { left: -4px; }
+.panelResize-ne, .panelResize-nw, .panelResize-se, .panelResize-sw { width: 16px; height: 16px; z-index: 9; }
+.panelResize-ne { top: -5px; right: -5px; cursor: nesw-resize; }
+.panelResize-nw { top: -5px; left: -5px; cursor: nwse-resize; }
+.panelResize-se { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.panelResize-sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
+
+.floatingPanel:hover { border-color: #3a4856; }
+.floatingPanel:active { border-color: #526374; }
+
+/* Interactive virtual track */
+.trackCanvas { touch-action: none; }
+.trackSvg { cursor: grab; }
+.trackCanvas.panning .trackSvg { cursor: grabbing; }
+.trackControls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 6;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.trackControls button {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 8px;
+  border: 1px solid #354351;
+  border-radius: 3px;
+  background: rgba(9,14,19,.92);
+  color: #dce5ed;
+  font: inherit;
+  font-size: 9px;
+  cursor: pointer;
+}
+.trackControls button:hover { background: #1b2732; border-color: #617181; }
+.trackControls button.active { color: #4be08a; border-color: #2c6d49; background: rgba(21,58,39,.8); }
+.trackZoomReadout {
+  min-width: 42px;
+  text-align: center;
+  color: #81909f;
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+
+.layoutResetButton {
+  border: 1px solid #34414d;
+  background: #10161d;
+  color: #81909f;
+  border-radius: 3px;
+  padding: 8px 10px;
+  font-size: 9px;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.layoutResetButton:hover { color: #e8eef4; border-color: #687786; }
+
+@media (max-width: 900px) {
+  .terminalGrid {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    padding: 10px;
+    overflow: visible;
+  }
+  .floatingPanel {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    width: 100% !important;
+    height: 420px !important;
+    margin-bottom: 10px;
+  }
+  .panelResize { display: none; }
+  .floatingPanel .panelDragHandle { cursor: default; }
+}
