@@ -42,29 +42,25 @@ function buildUrl(mode: string, sessionKey: number, from: number, to: number, dr
 }
 
 function useRemoteWindow<T>(url: string | null) {
-  const [state, setState] = useState<{ data: T[]; loading: boolean; error: string | null }>({
+  const [settled, setSettled] = useState<{ url: string | null; data: T[]; error: string | null }>({
+    url: null,
     data: [],
-    loading: Boolean(url),
     error: null,
   });
 
   useEffect(() => {
     let active = true;
-    if (!url) {
-      setState({ data: [], loading: false, error: null });
-      return;
-    }
+    if (!url) return;
 
-    setState((current) => ({ ...current, loading: true, error: null }));
     fetchCached<T[]>(url).then(
       (data) => {
-        if (active) setState({ data, loading: false, error: null });
+        if (active) setSettled({ url, data, error: null });
       },
       (error: unknown) => {
         if (active) {
-          setState({
+          setSettled({
+            url,
             data: [],
-            loading: false,
             error: error instanceof Error ? error.message : "Replay data request failed",
           });
         }
@@ -76,7 +72,13 @@ function useRemoteWindow<T>(url: string | null) {
     };
   }, [url]);
 
-  return state;
+  if (!url) return { data: [] as T[], loading: false, error: null as string | null };
+  const current = settled.url === url;
+  return {
+    data: current ? settled.data : [],
+    loading: !current,
+    error: current ? settled.error : null,
+  };
 }
 
 export function useTelemetryWindow({
