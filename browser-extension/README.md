@@ -11,16 +11,26 @@ It does not capture video, audio, screenshots, DRM keys, cookies, or account cre
 - page title and URL
 - sample timestamp
 
+The probe runs at `document_start` in all frames and tracks video elements created inside open or closed shadow roots. This is specifically intended to cope with modern embedded players such as F1 TV while remaining generic enough for other HTML5 replay services.
+
 ## Install in Chrome or Edge
 
 1. Run the terminal locally with `npm run dev`.
 2. Open `chrome://extensions` in Chrome, or `edge://extensions` in Edge.
 3. Enable **Developer mode**.
-4. Choose **Load unpacked**.
-5. Select this repository's `browser-extension` folder.
-6. Open the browser tab containing the F1 replay.
-7. Click the **F1 Data Terminal Video Sync** extension button once. Its badge changes to `SYNC`.
-8. In the terminal, the replay bar should change from `VIDEO ○` to `VIDEO ●`.
+4. Choose **Load unpacked** and select this repository's `browser-extension` folder. If it was already loaded, click **Reload** after pulling new code.
+5. Refresh both the F1 TV replay tab and the local terminal tab.
+6. Start or pause the replay so the player is fully initialized.
+7. Click the **F1 Data Terminal Video Sync** extension button once while the F1 TV tab is active.
+
+The extension badge is diagnostic:
+
+- `WAIT` — tab selected; waiting for the player to initialize
+- `NO` — selected tab is reachable, but no HTML5 video element has been detected
+- `OK` — video clock detected and being forwarded to the terminal
+- no badge — that tab is not selected as the sync source
+
+When the badge reaches `OK`, the terminal replay bar should change from `VIDEO ○` to `VIDEO ●`.
 
 Click the extension button again to disconnect that tab. Clicking it in a different video tab moves the sync source to that tab.
 
@@ -35,6 +45,6 @@ Click the extension button again to disconnect that tab. Clicking it in a differ
 
 Manual lap matching works without the extension; the terminal simply continues from the matched race timestamp using its own replay clock.
 
-## Current limitation
+## Transport
 
-The companion targets a local terminal on port 3000. A future deployed version should use a dedicated local bridge/WebSocket rather than relying on server memory in a serverless deployment.
+Version 0.2 sends playback state directly from the selected video tab to the local terminal tab through the extension messaging system. It also retains the original localhost HTTP bridge as a fallback. This avoids depending on browser local-network permissions for the normal path.
