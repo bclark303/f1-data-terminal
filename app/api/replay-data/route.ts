@@ -9,31 +9,19 @@ function numberParam(value: string | null, name: string) {
   return parsed;
 }
 
-function dateParam(value: string | null, name: string) {
-  if (!value || !Number.isFinite(Date.parse(value))) throw new Error(`Invalid ${name}`);
-  return new Date(value).toISOString();
-}
-
 export async function GET(request: NextRequest) {
   try {
     const mode = request.nextUrl.searchParams.get("mode");
     const sessionKey = numberParam(request.nextUrl.searchParams.get("sessionKey"), "sessionKey");
-    const from = dateParam(request.nextUrl.searchParams.get("from"), "from");
-    const to = dateParam(request.nextUrl.searchParams.get("to"), "to");
+    const driverNumber = numberParam(request.nextUrl.searchParams.get("driver"), "driver");
 
     if (mode === "telemetry") {
-      const data = await openF1.carDataWindow(sessionKey, from, to);
-      return NextResponse.json(data, { headers: { "Cache-Control": "public, max-age=3600" } });
-    }
-
-    if (mode === "locations") {
-      const data = await openF1.locationWindow(sessionKey, from, to);
-      return NextResponse.json(data, { headers: { "Cache-Control": "public, max-age=3600" } });
+      const data = await openF1.carDataDriver(sessionKey, driverNumber);
+      return NextResponse.json(data, { headers: { "Cache-Control": "public, max-age=86400" } });
     }
 
     if (mode === "track") {
-      const driverNumber = numberParam(request.nextUrl.searchParams.get("driver"), "driver");
-      const data = await openF1.locationWindow(sessionKey, from, to, driverNumber);
+      const data = await openF1.locationDriver(sessionKey, driverNumber);
       return NextResponse.json(data, { headers: { "Cache-Control": "public, max-age=86400" } });
     }
 
