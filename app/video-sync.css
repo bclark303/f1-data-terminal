@@ -1,0 +1,77 @@
+/* Replay video synchronization */
+.syncReadout { position: relative; }
+.videoBridgeState { min-width: 58px; white-space: nowrap; }
+.videoBridgeState.connected { color: var(--green); }
+
+.syncPopover {
+  position: absolute;
+  right: 0;
+  bottom: 48px;
+  z-index: 40;
+  width: min(430px, calc(100vw - 28px));
+  padding: 12px;
+  border: 1px solid #42505d;
+  border-radius: 5px;
+  background: rgba(9,14,19,.985);
+  box-shadow: 0 18px 50px rgba(0,0,0,.55);
+  color: var(--text);
+}
+.syncPopoverHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.syncPopoverHeader span,
+.syncSource > span,
+.syncMatchRow label > span,
+.syncStatusRow > span {
+  display: block;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+.syncPopoverHeader strong { display: block; margin-top: 4px; font-size: 12px; color: var(--green); }
+.syncPopoverHeader > button { padding: 2px 7px; font-size: 15px; }
+
+.syncSource { padding: 11px 0; border-bottom: 1px solid var(--line); }
+.syncSource strong { display: block; margin-top: 5px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.syncSource small { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; }
+
+.syncMatchRow { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; padding-top: 12px; }
+.syncMatchRow label select {
+  width: 100%;
+  margin-top: 5px;
+  padding: 8px;
+  border: 1px solid #354351;
+  border-radius: 3px;
+  background: #111820;
+  color: var(--text);
+}
+.replayBar .matchVideoButton {
+  height: 34px;
+  padding-inline: 14px;
+  color: #fff;
+  background: #7a2222;
+  border-color: #b53b35;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+.replayBar .matchVideoButton:hover { background: #9c2926; }
+.replayBar .matchVideoButton:disabled { opacity: .4; cursor: default; }
+.syncHelp { margin: 10px 0; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.syncStatusRow { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #1c2730; }
+.syncStatusRow strong { font-size: 9px; }
+.syncStatusRow button { min-width: 48px; }
+.clearSyncButton { width: 100%; margin-top: 8px; color: #ff8c86 !important; }
+
+@media (max-width: 1150px) {
+  .syncReadout { display: flex; }
+}
+@media (max-width: 760px) {
+  .syncReadout > button:not(:last-child), .syncReadout > strong { display: none; }
+  .syncPopover { right: -6px; }
+}
