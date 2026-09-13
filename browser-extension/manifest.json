@@ -3,7 +3,7 @@
   "name": "F1 Data Terminal Video Sync",
   "version": "0.1.0",
   "description": "Sends HTML5 video playback state to a local F1 Data Terminal for replay synchronization.",
-  "permissions": ["activeTab", "tabs"],
+  "permissions": ["activeTab", "tabs", "storage"],
   "host_permissions": [
     "http://localhost:3000/*",
     "http://127.0.0.1:3000/*"
