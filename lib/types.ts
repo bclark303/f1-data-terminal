@@ -85,3 +85,14 @@ export type LocationPoint = {
   y: number;
   z: number;
 };
+
+export type CarDataPoint = {
+  brake: number;
+  date: string;
+  driver_number: number;
+  drs: number;
+  n_gear: number;
+  rpm: number;
+  speed: number;
+  throttle: number;
+};

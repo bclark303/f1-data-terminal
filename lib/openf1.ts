@@ -1,4 +1,5 @@
 import type {
+  CarDataPoint,
   Driver,
   IntervalPoint,
   Lap,
@@ -106,6 +107,10 @@ async function query<T>(endpoint: string, params: Record<string, string | number
   }
 }
 
+function timeWindow(from: string, to: string) {
+  return { "date>=": from, "date<=": to };
+}
+
 export const openF1 = {
   sessions: (year: number, countryName?: string) =>
     query<Session>("sessions", {
@@ -120,5 +125,15 @@ export const openF1 = {
   intervals: (sessionKey: number) => query<IntervalPoint>("intervals", { session_key: sessionKey }),
   laps: (sessionKey: number) => query<Lap>("laps", { session_key: sessionKey }),
   stints: (sessionKey: number) => query<Stint>("stints", { session_key: sessionKey }),
-  locations: (sessionKey: number) => query<LocationPoint>("location", { session_key: sessionKey }),
+  carDataWindow: (sessionKey: number, from: string, to: string) =>
+    query<CarDataPoint>("car_data", {
+      session_key: sessionKey,
+      ...timeWindow(from, to),
+    }),
+  locationWindow: (sessionKey: number, from: string, to: string, driverNumber?: number) =>
+    query<LocationPoint>("location", {
+      session_key: sessionKey,
+      ...(driverNumber ? { driver_number: driverNumber } : {}),
+      ...timeWindow(from, to),
+    }),
 };

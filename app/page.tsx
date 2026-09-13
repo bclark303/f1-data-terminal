@@ -18,5 +18,5 @@ export default async function Home() {
     openF1.stints(session.session_key),
   ]);
 
-  return <Terminal session={session} drivers={drivers} weather={weather} raceControl={raceControl} positions={positions} intervals={intervals} laps={laps} stints={stints} locations={[]} />;
+  return <Terminal session={session} drivers={drivers} weather={weather} raceControl={raceControl} positions={positions} intervals={intervals} laps={laps} stints={stints} />;
 }
