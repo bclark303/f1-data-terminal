@@ -38,6 +38,7 @@ export function ReplayControls() {
   const [selectedLap, setSelectedLap] = useState(sync.lapAnchors[0]?.lap ?? 1);
   const [videoAnchor, setVideoAnchor] = useState<VideoAnchor | null>(null);
   const [autoVideo, setAutoVideo] = useState(false);
+  const autoActive = autoVideo && video.connected && Boolean(videoAnchor);
 
   const selectedAnchor = useMemo(
     () => sync.lapAnchors.find((anchor) => anchor.lap === selectedLap) ?? null,
@@ -45,14 +46,7 @@ export function ReplayControls() {
   );
 
   useEffect(() => {
-    if (!syncOpen || !sync.lapAnchors.length) return;
-    const next = sync.lapAnchors.find((anchor) => Date.parse(anchor.raceTime) > clock.raceTime + 500);
-    const current = [...sync.lapAnchors].reverse().find((anchor) => Date.parse(anchor.raceTime) <= clock.raceTime + 500);
-    setSelectedLap((next ?? current ?? sync.lapAnchors[0]).lap);
-  }, [syncOpen, sync.lapAnchors, clock.raceTime]);
-
-  useEffect(() => {
-    if (!autoVideo || !video.connected || !videoAnchor) return;
+    if (!autoActive || !videoAnchor) return;
 
     const videoTime = projectedVideoTime(video);
     const targetRaceTime = videoAnchor.raceTimeMs + (videoTime - videoAnchor.videoTime) * 1000;
@@ -62,8 +56,7 @@ export function ReplayControls() {
     if (video.paused && clock.playing) clock.pause();
     if (!video.paused && !clock.playing) clock.play();
   }, [
-    autoVideo,
-    video.connected,
+    autoActive,
     video.currentTime,
     video.capturedAt,
     video.paused,
@@ -78,9 +71,19 @@ export function ReplayControls() {
     clock.rate,
   ]);
 
-  useEffect(() => {
-    if (!video.connected && autoVideo) setAutoVideo(false);
-  }, [video.connected, autoVideo]);
+  const toggleSyncPopover = () => {
+    if (syncOpen) {
+      setSyncOpen(false);
+      return;
+    }
+
+    if (sync.lapAnchors.length) {
+      const next = sync.lapAnchors.find((anchor) => Date.parse(anchor.raceTime) > clock.raceTime + 500);
+      const current = [...sync.lapAnchors].reverse().find((anchor) => Date.parse(anchor.raceTime) <= clock.raceTime + 500);
+      setSelectedLap((next ?? current ?? sync.lapAnchors[0]).lap);
+    }
+    setSyncOpen(true);
+  };
 
   const matchNow = () => {
     if (!selectedAnchor) return;
@@ -149,11 +152,11 @@ export function ReplayControls() {
         <button onClick={() => clock.setSyncOffsetMs(clock.syncOffsetMs - 100)}>−.1</button>
         <button onClick={() => clock.setSyncOffsetMs(clock.syncOffsetMs + 100)}>+.1</button>
         <button onClick={() => clock.setSyncOffsetMs(clock.syncOffsetMs + 1000)}>+1</button>
-        <button className={autoVideo ? "active" : ""} onClick={() => setSyncOpen((open) => !open)}>SYNC</button>
+        <button className={autoActive ? "active" : ""} onClick={toggleSyncPopover}>SYNC</button>
 
         {syncOpen && <div className="syncPopover">
           <div className="syncPopoverHeader">
-            <div><span>VIDEO SYNC</span><strong>{autoVideo ? "AUTO LOCKED" : video.connected ? "COMPANION READY" : "MANUAL"}</strong></div>
+            <div><span>VIDEO SYNC</span><strong>{autoActive ? "AUTO LOCKED" : video.connected ? "COMPANION READY" : "MANUAL"}</strong></div>
             <button onClick={() => setSyncOpen(false)}>×</button>
           </div>
 
@@ -191,10 +194,10 @@ export function ReplayControls() {
           <div className="syncStatusRow">
             <span>AUTO FOLLOW</span>
             <button
-              className={autoVideo ? "active" : ""}
+              className={autoActive ? "active" : ""}
               disabled={!video.connected || !videoAnchor}
               onClick={() => setAutoVideo((value) => !value)}
-            >{autoVideo ? "ON" : "OFF"}</button>
+            >{autoActive ? "ON" : "OFF"}</button>
           </div>
 
           {videoAnchor && <button className="clearSyncButton" onClick={clearVideoAnchor}>CLEAR VIDEO ANCHOR</button>}
