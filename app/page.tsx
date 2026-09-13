@@ -1,3 +1,4 @@
+import { ReplaySyncProvider, type LapSyncAnchor } from "@/components/replay-sync-context";
 import { Terminal } from "@/components/terminal";
 import { openF1 } from "@/lib/openf1";
 
@@ -28,5 +29,21 @@ export default async function Home() {
   // the clock to the first recorded Lap 1 start so telemetry is available at t=0.
   const replaySession = firstLapStart ? { ...session, date_start: firstLapStart } : session;
 
-  return <Terminal session={replaySession} drivers={drivers} weather={weather} raceControl={raceControl} positions={positions} intervals={intervals} laps={laps} stints={stints} />;
+  // The earliest recorded start of each lap corresponds to the leader starting
+  // that lap. These timestamps make clean broadcast sync anchors.
+  const anchorMap = new Map<number, string>();
+  for (const lap of laps) {
+    if (!lap.date_start) continue;
+    const previous = anchorMap.get(lap.lap_number);
+    if (!previous || lap.date_start < previous) anchorMap.set(lap.lap_number, lap.date_start);
+  }
+  const lapAnchors: LapSyncAnchor[] = [...anchorMap.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([lap, raceTime]) => ({ lap, raceTime }));
+
+  return (
+    <ReplaySyncProvider sessionKey={replaySession.session_key} lapAnchors={lapAnchors}>
+      <Terminal session={replaySession} drivers={drivers} weather={weather} raceControl={raceControl} positions={positions} intervals={intervals} laps={laps} stints={stints} />
+    </ReplaySyncProvider>
+  );
 }
