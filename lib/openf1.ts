@@ -80,7 +80,11 @@ async function scheduledFetch(url: URL): Promise<Response> {
   return response;
 }
 
-async function query<T>(endpoint: string, params: Record<string, string | number>): Promise<T[]> {
+async function query<T>(
+  endpoint: string,
+  params: Record<string, string | number>,
+  options: { emptyOn404?: boolean } = {},
+): Promise<T[]> {
   const url = new URL(`${OPENF1_BASE}/${endpoint}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
 
@@ -90,6 +94,11 @@ async function query<T>(endpoint: string, params: Record<string, string | number
 
   const pending = (async () => {
     const response = await scheduledFetch(url);
+
+    // High-rate endpoints can return 404 when a requested time slice contains
+    // no samples. Treat that as an empty window so replay can continue cleanly.
+    if (response.status === 404 && options.emptyOn404) return [] as T[];
+
     if (!response.ok) {
       throw new Error(`OpenF1 ${endpoint} request failed: ${response.status}`);
     }
@@ -126,14 +135,22 @@ export const openF1 = {
   laps: (sessionKey: number) => query<Lap>("laps", { session_key: sessionKey }),
   stints: (sessionKey: number) => query<Stint>("stints", { session_key: sessionKey }),
   carDataWindow: (sessionKey: number, from: string, to: string) =>
-    query<CarDataPoint>("car_data", {
-      session_key: sessionKey,
-      ...timeWindow(from, to),
-    }),
+    query<CarDataPoint>(
+      "car_data",
+      {
+        session_key: sessionKey,
+        ...timeWindow(from, to),
+      },
+      { emptyOn404: true },
+    ),
   locationWindow: (sessionKey: number, from: string, to: string, driverNumber?: number) =>
-    query<LocationPoint>("location", {
-      session_key: sessionKey,
-      ...(driverNumber ? { driver_number: driverNumber } : {}),
-      ...timeWindow(from, to),
-    }),
+    query<LocationPoint>(
+      "location",
+      {
+        session_key: sessionKey,
+        ...(driverNumber ? { driver_number: driverNumber } : {}),
+        ...timeWindow(from, to),
+      },
+      { emptyOn404: true },
+    ),
 };
