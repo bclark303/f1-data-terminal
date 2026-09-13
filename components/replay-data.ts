@@ -84,14 +84,23 @@ export function useDriverTelemetry(sessionKey: number, driverNumber: number) {
 }
 
 /**
- * One driver's full-session location stream is enough to recover a clean lap
- * and construct the circuit geometry. Field positions are derived from lap
- * progress so we do not need twenty simultaneous 3.7 Hz location streams.
+ * Fetch a driver's complete location stream. The same client cache is shared
+ * with circuit-geometry requests, so when the selected driver is also the
+ * geometry driver this does not generate a second download.
  */
-export function useTrackGeometry(sessionKey: number, driverNumber: number) {
+export function useDriverLocation(sessionKey: number, driverNumber: number) {
   const url = useMemo(
     () => driverNumber ? buildUrl("track", sessionKey, driverNumber) : null,
     [sessionKey, driverNumber],
   );
   return useRemoteData<LocationPoint>(url);
+}
+
+/**
+ * One driver's full-session location stream is enough to recover a clean lap
+ * and construct the circuit geometry. Field positions are derived from lap
+ * progress so we do not need twenty simultaneous 3.7 Hz location streams.
+ */
+export function useTrackGeometry(sessionKey: number, driverNumber: number) {
+  return useDriverLocation(sessionKey, driverNumber);
 }
