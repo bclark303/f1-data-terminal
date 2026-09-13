@@ -39,7 +39,29 @@ function keyFromClass(className: string) {
 }
 
 function storageKey(id: string) {
-  return `f1-terminal-panel:${id}:v1`;
+  return `f1-terminal-panel:${id}:v2`;
+}
+
+function responsiveDefault(id: string, workspace: HTMLElement | null, fallback: PanelLayout) {
+  if (!workspace || workspace.clientWidth < 900) return fallback;
+  const width = workspace.clientWidth;
+  const gap = 12;
+  const leftWidth = Math.max(360, Math.min(560, width * 0.39));
+  const rightWidth = Math.max(MIN_WIDTH, (width - leftWidth - gap * 4) / 2);
+  const secondX = gap * 2 + leftWidth;
+  const thirdX = secondX + rightWidth + gap;
+  const topHeight = 365;
+  const bottomY = gap * 2 + topHeight;
+  const tallHeight = topHeight * 2 + gap;
+
+  const layouts: Record<string, PanelLayout> = {
+    timingPanel: { x: gap, y: gap, width: leftWidth, height: tallHeight },
+    driverPanel: { x: secondX, y: gap, width: rightWidth, height: topHeight },
+    trackPanel: { x: thirdX, y: gap, width: rightWidth, height: topHeight },
+    controlPanel: { x: secondX, y: bottomY, width: rightWidth, height: topHeight },
+    weatherPanel: { x: thirdX, y: bottomY, width: rightWidth, height: topHeight },
+  };
+  return layouts[id] ?? fallback;
 }
 
 function clampLayout(layout: PanelLayout, workspace: HTMLElement | null): PanelLayout {
@@ -77,14 +99,14 @@ export function Panel({
   children: React.ReactNode;
 }) {
   const layoutId = id ?? keyFromClass(className);
-  const initialLayout = defaultLayout ?? DEFAULTS[keyFromClass(className)] ?? { x: 12, y: 12, width: 420, height: 320 };
+  const fallbackLayout = defaultLayout ?? DEFAULTS[keyFromClass(className)] ?? { x: 12, y: 12, width: 420, height: 320 };
   const isTrack = layoutId === "trackPanel";
   const panelRef = useRef<HTMLElement>(null);
   const interactionRef = useRef<Interaction | null>(null);
   const mapPanRef = useRef<MapPan | null>(null);
   const mapCenterRef = useRef<Point>({ x: 500, y: 300 });
   const followFrameRef = useRef<number | null>(null);
-  const [layout, setLayout] = useState(initialLayout);
+  const [layout, setLayout] = useState(fallbackLayout);
   const [zIndex, setZIndex] = useState(1);
   const [mapZoom, setMapZoom] = useState(1);
   const [mapFollow, setMapFollow] = useState(false);
@@ -121,6 +143,7 @@ export function Panel({
   useEffect(() => {
     const saved = localStorage.getItem(storageKey(layoutId));
     const workspace = panelRef.current?.parentElement ?? null;
+    const defaultForWorkspace = responsiveDefault(layoutId, workspace, fallbackLayout);
     if (saved) {
       try {
         const parsed = JSON.parse(saved) as PanelLayout;
@@ -131,16 +154,16 @@ export function Panel({
         localStorage.removeItem(storageKey(layoutId));
       }
     } else {
-      setLayout(clampLayout(initialLayout, workspace));
+      setLayout(clampLayout(defaultForWorkspace, workspace));
     }
 
     const reset = () => {
       localStorage.removeItem(storageKey(layoutId));
-      setLayout(clampLayout(initialLayout, workspace));
+      setLayout(clampLayout(responsiveDefault(layoutId, workspace, fallbackLayout), workspace));
     };
     window.addEventListener("f1-terminal-reset-layout", reset);
     return () => window.removeEventListener("f1-terminal-reset-layout", reset);
-  }, [layoutId, initialLayout.x, initialLayout.y, initialLayout.width, initialLayout.height]);
+  }, [layoutId, fallbackLayout.x, fallbackLayout.y, fallbackLayout.width, fallbackLayout.height]);
 
   useEffect(() => {
     if (!isTrack || !mapFollow) {
