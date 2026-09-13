@@ -14,10 +14,11 @@ import type {
   Weather,
 } from "@/lib/types";
 import { formatLap, latestAt } from "@/lib/time";
+import { GForceDisplay } from "./g-force";
 import { Panel } from "./panel";
 import { ReplayControls } from "./replay-controls";
 import { ReplayClockProvider, useReplayClock } from "./replay-clock";
-import { useDriverTelemetry, useTrackGeometry } from "./replay-data";
+import { useDriverLocation, useDriverTelemetry, useTrackGeometry } from "./replay-data";
 
 type TerminalProps = {
   session: Session;
@@ -36,6 +37,7 @@ function TerminalContent({ session, drivers, weather, raceControl, positions, in
   const geometryDriver = drivers[0]?.driver_number ?? 0;
 
   const telemetry = useDriverTelemetry(session.session_key, selectedDriver);
+  const selectedLocation = useDriverLocation(session.session_key, selectedDriver);
   const trackGeometry = useTrackGeometry(session.session_key, geometryDriver);
 
   const byDriver = useMemo(() => {
@@ -146,6 +148,16 @@ function TerminalContent({ session, drivers, weather, raceControl, positions, in
               <Metric label="Stint" value={selected.currentStint ? `#${selected.currentStint.stint_number}` : "—"} />
             </div>
             <TelemetryPanel data={telemetry.data} raceTime={clock.raceTime} loading={telemetry.loading} error={telemetry.error} teamColour={selected.driver.team_colour} />
+            <GForceDisplay
+              telemetry={telemetry.data}
+              locations={selectedLocation.data}
+              raceTime={clock.raceTime}
+              telemetryLoading={telemetry.loading}
+              locationLoading={selectedLocation.loading}
+              telemetryError={telemetry.error}
+              locationError={selectedLocation.error}
+              teamColour={selected.driver.team_colour}
+            />
           </>}
         </Panel>
 
