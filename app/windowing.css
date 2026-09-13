@@ -53,10 +53,10 @@
 /* Interactive virtual track */
 .trackCanvas { touch-action: none; }
 .trackSvg { cursor: grab; }
-.trackCanvas.panning .trackSvg { cursor: grabbing; }
+.trackPanel.panning .trackSvg { cursor: grabbing; }
 .trackControls {
   position: absolute;
-  top: 10px;
+  top: 62px;
   right: 10px;
   z-index: 6;
   display: flex;
