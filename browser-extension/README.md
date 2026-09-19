@@ -1,4 +1,4 @@
-# Video Sync Companion 0.3
+# Video Sync Companion 0.3.1
 
 Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at `http://localhost:3000` or `http://127.0.0.1:3000`. All HTTP sync has been removed.
 
@@ -8,7 +8,7 @@ Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at
 2. Open `chrome://extensions` or `edge://extensions`, enable Developer mode, and load this folder unpacked. Existing users: **Reload** the extension and refresh both terminal and video tabs.
 3. With the **terminal tab active**, click the extension button. `LINK` confirms pairing. Clicking again unpairs it.
 4. With the **video tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. If no player appears, initialize playback and refresh the source tab. Clicking again disconnects.
-5. Return to the terminal. Open SYNC, select the next broadcast lap, and press MATCH NOW at the lap change.
+5. Return to the terminal. When automatic sync metadata is available, the terminal anchors itself without any lap selection. Open AUTO/SYNC to see the detected video time and race-start offset. MATCH NOW remains the fallback.
 
 The terminal follows pause, play, seeks, playback rate, and detected stalls. Losing the source pauses the clock. Changing media invalidates the anchor. Manual replay controls turn off follow; ±1 / ±0.1 second offset buttons preserve it. Without the companion, MATCH NOW starts the terminal's manual clock.
 
@@ -18,7 +18,7 @@ Only paired terminal tabs on exact allowed origins receive state, in the top fra
 
 Messages contain a version, random media identity, sequence, playback time, duration, paused/buffering/ended state, playback rate, title (up to 240 characters), and timestamp. They contain **no URL**, video, audio, screenshot, cookie, credentials, or DRM keys. Page titles may themselves contain personal information, so only pair terminal tabs you trust.
 
-A minimal document-start hook retains weak references to closed shadow roots. Observers, periodic discovery, and playback reporting activate only in the selected source tab. Detached videos are discarded. Each frame discovers a candidate; the worker elects one player and holds it while fresh samples arrive. Source selection and election survive worker suspension. Old and out-of-order samples are rejected.
+A minimal document-start hook retains weak references to closed shadow roots. Observers, periodic discovery, and playback reporting activate only in the selected source tab. Detached videos are discarded. Each frame continuously ranks its attached video elements by recent clock advancement, playing state, and visible size. A stopped pre-roll/placeholder can therefore hand off to the real F1 TV race player without requiring a reconnect. The worker then elects one frame/player and holds it while fresh samples arrive. Source selection and election survive worker suspension. Old and out-of-order samples are rejected.
 
 For videos with edits or ads inserted into the same timeline, match again after the discontinuity. Providers that reuse the same element and source without any detectable media change can require manual rematching. To reselect among multiple players, disconnect and reconnect after the desired player is initialized.
 
