@@ -53,7 +53,7 @@ export async function seedCache(root) {
 
   await save(
     "sessions",
-    { session_name: "Race", "date_start>=": "2023-01-01" },
+    { session_name: "Race", "date_start>": "2023-01-01" },
     sessions,
   );
 
