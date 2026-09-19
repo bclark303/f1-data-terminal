@@ -1,6 +1,6 @@
 # F1 Data Terminal
 
-A local, replay-first Formula 1 timing and telemetry companion using historical OpenF1 data. The supported catalogue currently contains the **2025 Canadian Grand Prix race**.
+A local, replay-first Formula 1 timing and telemetry companion using historical OpenF1 data. The race selector exposes completed OpenF1 race sessions from **2023 onward**, while keeping the 2025 Canadian Grand Prix as the default baseline.
 
 ## Run locally
 
@@ -15,6 +15,7 @@ Open http://localhost:3000. For normal use, `npm run build && npm start` runs a 
 
 ## Replay behaviour
 
+- Choose any completed historical race exposed by OpenF1 from 2023 onward. The selected session is stored in the URL (`?session=...`), so reloads and shared local links preserve the race.
 - One clock controls timing, telemetry, race control, weather, and the virtual track.
 - LAST and BEST show **completed** laps. The current lap is tracked separately. Seeking backward removes results that had not happened yet.
 - Race-control clicks jump five seconds before the event and disengage video follow.
@@ -34,7 +35,7 @@ For a cut/edited broadcast, match again after each discontinuity. The companion 
 ## Architecture and data policy
 
 - `app/page.tsx`: essential session/driver/lap loading; optional datasets fail independently with a retry control.
-- `lib/sessions.ts`: supported session catalogue and proxy bounds. Add new sessions here, then provide a session selector. Providers are keyed by session to reset clock, driver selection, and anchors.
+- `lib/sessions.ts`: completed historical race catalogue and proxy bounds. It filters OpenF1 race sessions to 2023 onward and excludes the live-session grace window. Providers are keyed by session to reset clock, driver selection, and anchors.
 - `lib/openf1.ts`, `request-scheduler.ts`, `disk-cache.ts`: schema-validated ingestion, single-flight requests, 15-second network/body deadline, bounded retry and queue (newest interactive driver requests first), 400 ms request spacing and 30 requests/minute. Rate limiting is process-local; multiple replicas require a shared limiter.
 - Whole-driver high-rate datasets are ingested once and served from a persistent cache. The server retains up to 32 datasets / approximately 64 MiB of serialized text in memory. Individual downloads are limited to 20 MiB. Disk cache is capped at 256 MiB, with a 24-hour TTL and atomic writes. Set `F1_CACHE_DIR` to choose its location (default `.cache/openf1-v1`). Read-only disk failures degrade to memory caching. Size budgets describe serialized text, not total JavaScript heap use.
 - Client cache: 12 datasets / approximately 48 MiB of serialized text, one-hour TTL. Shared downloads are canceled when no consumers remain; already-running shared server ingestion may finish. Error controls explicitly retry the same selection.

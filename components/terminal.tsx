@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import type {
   Driver,
   IntervalPoint,
@@ -33,6 +33,7 @@ import {
 
 type TerminalProps = {
   warnings?: string[];
+  sessions: Session[];
   session: Session;
   drivers: Driver[];
   weather: Weather[];
@@ -45,6 +46,7 @@ type TerminalProps = {
 
 function TerminalContent({
   warnings = [],
+  sessions,
   session,
   drivers,
   weather,
@@ -56,6 +58,7 @@ function TerminalContent({
 }: TerminalProps) {
   const clock = useReplayClock();
   const router = useRouter();
+  const [isSwitchingRace, startRaceTransition] = useTransition();
   const [selectedDriver, setSelectedDriver] = useState(
     drivers[0]?.driver_number ?? 0,
   );
@@ -161,6 +164,16 @@ function TerminalContent({
     return { currentWeather, visibleRaceControl, rows };
   }, [weather, eventIndex, drivers, byDriver, clock.raceTime]);
 
+  const raceGroups = useMemo(() => {
+    const grouped = new Map<number, Session[]>();
+    for (const race of sessions) {
+      const bucket = grouped.get(race.year);
+      if (bucket) bucket.push(race);
+      else grouped.set(race.year, [race]);
+    }
+    return [...grouped.entries()].sort(([a], [b]) => b - a);
+  }, [sessions]);
+
   const selected =
     state.rows.find((row) => row.driver.driver_number === selectedDriver) ??
     state.rows[0];
@@ -176,8 +189,35 @@ function TerminalContent({
           <div className="brand">
             F1 DATA TERMINAL <span>REPLAY</span>
           </div>
-          <div className="eventName">
-            {session.year} {session.country_name.toUpperCase()} GRAND PRIX
+          <div className="eventHeading">
+            <div className="eventName">
+              {session.year} {session.country_name.toUpperCase()} GRAND PRIX
+            </div>
+            <label className="racePicker">
+              <span>RACE</span>
+              <select
+                aria-label="Race session"
+                defaultValue={session.session_key}
+                disabled={isSwitchingRace}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  startRaceTransition(() => {
+                    router.push(`/?session=${next}`);
+                  });
+                }}
+              >
+                {raceGroups.map(([year, races]) => (
+                  <optgroup key={year} label={String(year)}>
+                    {races.map((race) => (
+                      <option key={race.session_key} value={race.session_key}>
+                        {race.country_name} — {race.circuit_short_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {isSwitchingRace && <small>LOADING…</small>}
+            </label>
           </div>
         </div>
         <button

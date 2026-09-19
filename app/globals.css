@@ -66,6 +66,36 @@ button {
   font-weight: 800;
   letter-spacing: 0.04em;
 }
+.eventHeading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.racePicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.racePicker > span,
+.racePicker small {
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+}
+.racePicker select {
+  max-width: 300px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #10161d;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.racePicker select:disabled {
+  opacity: 0.65;
+}
 .sessionStats {
   display: flex;
   align-items: center;
@@ -453,6 +483,14 @@ button {
     height: auto;
     align-items: flex-start;
     gap: 12px;
+  }
+  .eventHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .racePicker select {
+    max-width: 220px;
   }
   .sessionStats {
     flex-direction: column;
