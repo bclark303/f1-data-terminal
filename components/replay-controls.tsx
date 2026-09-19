@@ -38,7 +38,6 @@ export function ReplayControls() {
   const videoAnchor = clock.videoAnchor;
   const autoActive = clock.following;
   const attemptedAutoSources = useRef(new Set<string>());
-  const [autoMatched, setAutoMatched] = useState(false);
   const [autoSync, setAutoSync] = useState<AutoSyncLookup>({
     key: "",
     status: "idle",
@@ -53,17 +52,22 @@ export function ReplayControls() {
     [sync.lapAnchors],
   );
 
-  useEffect(() => {
-    setAutoMatched(false);
-    if (!video) {
-      setAutoSync({ key: "", status: "idle", metadata: null });
-      return;
-    }
+  const videoSourceId = video?.sourceId ?? null;
+  const autoKey = videoSourceId
+    ? `${sync.sessionKey}:${videoSourceId}`
+    : "";
+  const currentAutoSync: AutoSyncLookup = !videoSourceId
+    ? { key: "", status: "idle", metadata: null }
+    : autoSync.key === autoKey
+      ? autoSync
+      : { key: autoKey, status: "loading", metadata: null };
 
-    const key = `${sync.sessionKey}:${video.sourceId}`;
+  useEffect(() => {
+    if (!videoSourceId) return;
+
+    const key = `${sync.sessionKey}:${videoSourceId}`;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 7000);
-    setAutoSync({ key, status: "loading", metadata: null });
 
     void fetch(
       `/api/auto-sync?sessionKey=${encodeURIComponent(String(sync.sessionKey))}`,
@@ -93,8 +97,7 @@ export function ReplayControls() {
         };
       })
       .then((result) => {
-        if (!controller.signal.aborted)
-          setAutoSync({ key, ...result });
+        if (!controller.signal.aborted) setAutoSync({ key, ...result });
       })
       .catch(() => {
         if (!controller.signal.aborted)
@@ -106,42 +109,54 @@ export function ReplayControls() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [sync.sessionKey, video?.sourceId]);
+  }, [sync.sessionKey, videoSourceId]);
 
   useEffect(() => {
     if (
-      !video ||
+      !videoSourceId ||
       !lapOneAnchor ||
-      !autoSync.metadata ||
-      autoSync.status !== "ready" ||
+      !currentAutoSync.metadata ||
+      currentAutoSync.status !== "ready" ||
       videoAnchor
     )
       return;
 
-    const key = `${sync.sessionKey}:${video.sourceId}`;
-    if (autoSync.key !== key || attemptedAutoSources.current.has(key)) return;
-    attemptedAutoSources.current.add(key);
+    if (attemptedAutoSources.current.has(autoKey)) return;
+    attemptedAutoSources.current.add(autoKey);
 
     const raceTimeMs = Date.parse(lapOneAnchor.raceTime);
     if (!Number.isFinite(raceTimeMs)) return;
-    setAutoMatched(true);
     clock.setSyncOffsetMs(0);
     clock.matchVideo({
       lap: lapOneAnchor.lap,
       raceTimeMs,
-      videoTime: autoSync.metadata.sessionStartSec,
-      sourceId: video.sourceId,
+      videoTime: currentAutoSync.metadata.sessionStartSec,
+      sourceId: videoSourceId,
       sessionKey: sync.sessionKey,
     });
   }, [
-    autoSync,
-    clock.matchVideo,
-    clock.setSyncOffsetMs,
+    autoKey,
+    clock,
+    currentAutoSync.metadata,
+    currentAutoSync.status,
     lapOneAnchor,
     sync.sessionKey,
-    video,
     videoAnchor,
+    videoSourceId,
   ]);
+
+  const autoMatched = Boolean(
+    videoAnchor &&
+      videoSourceId &&
+      lapOneAnchor &&
+      currentAutoSync.metadata &&
+      videoAnchor.sessionKey === sync.sessionKey &&
+      videoAnchor.sourceId === videoSourceId &&
+      videoAnchor.lap === lapOneAnchor.lap &&
+      Math.abs(
+        videoAnchor.videoTime - currentAutoSync.metadata.sessionStartSec,
+      ) < 0.001,
+  );
 
   const selectedAnchor = useMemo(
     () => sync.lapAnchors.find((anchor) => anchor.lap === selectedLap) ?? null,
@@ -172,7 +187,6 @@ export function ReplayControls() {
       attemptedAutoSources.current.add(
         `${sync.sessionKey}:${video.sourceId}`,
       );
-    setAutoMatched(false);
     const raceTimeMs = Date.parse(selectedAnchor.raceTime);
     clock.setSyncOffsetMs(0);
     clock.seek(raceTimeMs - clock.sessionStart);
@@ -196,7 +210,6 @@ export function ReplayControls() {
       attemptedAutoSources.current.add(
         `${sync.sessionKey}:${video.sourceId}`,
       );
-    setAutoMatched(false);
     clock.clearVideo();
   };
 
@@ -313,8 +326,8 @@ export function ReplayControls() {
                       : video.paused
                         ? "PAUSED"
                         : `${video.playbackRate.toFixed(2)}× PLAYING`}
-                    {autoSync.metadata
-                      ? ` · AUTO START ${formatVideoTime(autoSync.metadata.sessionStartSec)}`
+                    {currentAutoSync.metadata
+                      ? ` · AUTO START ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)}`
                       : ""}
                   </small>
                 </>
@@ -333,13 +346,13 @@ export function ReplayControls() {
                   ? "WAITING FOR VIDEO"
                   : autoMatched
                     ? "MATCHED"
-                    : autoSync.status === "loading"
+                    : currentAutoSync.status === "loading"
                       ? "LOOKING UP…"
-                      : autoSync.status === "ready" && autoSync.metadata
-                        ? `READY · START ${formatVideoTime(autoSync.metadata.sessionStartSec)}`
-                        : autoSync.status === "unavailable"
+                      : currentAutoSync.status === "ready" && currentAutoSync.metadata
+                        ? `READY · START ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)}`
+                        : currentAutoSync.status === "unavailable"
                           ? "UNAVAILABLE · USE MANUAL"
-                          : autoSync.status === "error"
+                          : currentAutoSync.status === "error"
                             ? "LOOKUP FAILED · USE MANUAL"
                             : "WAITING"}
               </strong>
