@@ -2,6 +2,7 @@
   const roots = new Set();
   const tracked = new Set();
   const identities = new WeakMap();
+  const activity = new WeakMap();
   const observers = new Map();
   let enabled = false,
     timer = null,
@@ -38,12 +39,34 @@
     if (enabled) observe(root);
     return root;
   };
-  function score(video) {
+  function visibleArea(video) {
     const r = video.getBoundingClientRect();
-    const area =
+    return (
       Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0)) *
-      Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
-    return (!video.paused && !video.ended ? 1e9 : 0) + area * 1000;
+      Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0))
+    );
+  }
+  function updateActivity(video, now) {
+    const currentTime = Number(video.currentTime);
+    const previous = activity.get(video);
+    const advanced =
+      Number.isFinite(currentTime) &&
+      (!previous || Math.abs(currentTime - previous.time) > 0.005);
+    const next = {
+      time: currentTime,
+      lastAdvance: advanced ? now : previous?.lastAdvance ?? now,
+    };
+    activity.set(video, next);
+    return next;
+  }
+  function score(video, now) {
+    const state = updateActivity(video, now);
+    const advancing = now - state.lastAdvance <= 800;
+    return (
+      (advancing && !video.paused && !video.ended ? 2e9 : 0) +
+      (!video.paused && !video.ended ? 1e9 : 0) +
+      visibleArea(video) * 1000
+    );
   }
   function emit() {
     if (!enabled) return;
@@ -63,10 +86,23 @@
       lastDiscovery = now;
     }
     for (const video of tracked) if (!video.isConnected) tracked.delete(video);
-    if (!chosen?.isConnected || !tracked.has(chosen))
-      chosen = [...tracked]
-        .filter((v) => v.readyState > 0)
-        .sort((a, b) => score(b) - score(a))[0];
+    const candidates = [...tracked].filter(
+      (video) => video.readyState > 0 && Number.isFinite(video.currentTime),
+    );
+    for (const video of candidates) updateActivity(video, now);
+    const best = candidates.sort((a, b) => score(b, now) - score(a, now))[0];
+    if (!chosen?.isConnected || !tracked.has(chosen)) chosen = best;
+    else if (best && best !== chosen) {
+      const chosenState = activity.get(chosen);
+      const chosenAdvancing =
+        chosenState && now - chosenState.lastAdvance <= 1000;
+      const bestScore = score(best, now);
+      const chosenScore = score(chosen, now);
+      // Re-elect when the old player has stopped advancing, or when a clearly
+      // stronger active player appears. F1 TV can leave pre-roll/placeholder
+      // video elements attached after the real race player starts.
+      if (!chosenAdvancing || bestScore > chosenScore + 5e8) chosen = best;
+    }
     if (!chosen || !Number.isFinite(chosen.currentTime)) return;
     if (!identities.has(chosen)) identities.set(chosen, crypto.randomUUID());
     // Do not transmit media URLs. Identity changes invalidate anchors without disclosing tokens.
@@ -91,7 +127,7 @@
     window.postMessage(
       {
         source: "F1_VIDEO_PROBE",
-        score: score(chosen),
+        score: score(chosen, now),
         state: {
           version: 1,
           sourceId: mediaId,
