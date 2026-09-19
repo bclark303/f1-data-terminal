@@ -4,18 +4,24 @@ import {
   type LapSyncAnchor,
 } from "@/components/replay-sync-context";
 import { Terminal } from "@/components/terminal";
-import { supportedSessions } from "@/lib/sessions";
+import { selectSession, supportedSessions } from "@/lib/sessions";
 import { openF1 } from "@/lib/openf1";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+type HomeProps = {
+  searchParams: Promise<{ session?: string | string[] }>;
+};
+
+export default async function Home({ searchParams }: HomeProps) {
+  const params = await searchParams;
   const sessions = await supportedSessions();
-  const session = sessions.find((item) => item.session_name === "Race");
+  const requestedSession = Array.isArray(params.session)
+    ? params.session[0]
+    : params.session;
+  const session = selectSession(sessions, requestedSession);
   if (!session)
-    throw new Error(
-      "2025 Canadian Grand Prix race session was not found in OpenF1.",
-    );
+    throw new Error("No completed OpenF1 race sessions are currently available.");
 
   const [drivers, laps] = await Promise.all([
     openF1.drivers(session.session_key),
@@ -78,6 +84,7 @@ export default async function Home() {
     >
       <Terminal
         warnings={warnings}
+        sessions={sessions}
         session={replaySession}
         drivers={drivers}
         weather={weather}
