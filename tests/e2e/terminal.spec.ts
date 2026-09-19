@@ -149,7 +149,7 @@ test("retired bridge discloses no state and invalid proxy inputs are rejected", 
   ).toBe(400);
   expect(
     (
-      await request.get("/api/replay-data?mode=track&sessionKey=9998&driver=1")
+      await request.get("/api/replay-data?mode=track&sessionKey=9997&driver=1")
     ).status(),
   ).toBe(404);
 });
