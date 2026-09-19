@@ -40,6 +40,20 @@ test("race loads, prevents future lap results, seeks and preserves accessible co
   await page.getByRole("button", { name: "RESET LAYOUT" }).click();
   expect(errors).toEqual([]);
 });
+test("race selector switches between available historical races", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const selector = page.getByLabel("Race session");
+  await expect(selector).toHaveValue("9999");
+  await expect(selector.locator("option")).toHaveCount(2);
+
+  await selector.selectOption("9998");
+  await expect(page).toHaveURL(/session=9998/);
+  await expect(page.getByText("2024 GREAT BRITAIN GRAND PRIX")).toBeVisible();
+  await expect(page.getByLabel("Race session")).toHaveValue("9998");
+});
+
 test("driver error can be retried without changing selection", async ({
   page,
 }) => {
