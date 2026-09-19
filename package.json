@@ -3,22 +3,35 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
-    "start": "next start",
-    "lint": "eslint ."
+    "start": "next start --hostname 127.0.0.1",
+    "lint": "eslint .",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "next typegen && tsc --noEmit",
+    "extension:build": "node scripts/build-extension.mjs",
+    "extension:check": "node scripts/build-extension.mjs --check",
+    "test:e2e": "playwright test",
+    "format": "prettier --write app components lib shared scripts tests playwright.config.ts README.md browser-extension .github package.json tsconfig.json && npm run extension:build"
   },
   "dependencies": {
-    "next": "16.2.6",
-    "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "next": "16.3.5",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.0.0",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.3.5",
+    "prettier": "3.9.8",
+    "tsx": "4.23.13",
     "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=22.12 <25"
   }
 }

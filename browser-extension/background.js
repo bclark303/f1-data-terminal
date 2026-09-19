@@ -1,110 +1,203 @@
-async function getSourceTabId() {
-  const stored = await chrome.storage.session.get("sourceTabId");
-  return Number.isInteger(stored.sourceTabId) ? stored.sourceTabId : null;
-}
+import {
+  isTerminalUrl,
+  parseVideoState,
+  isNewerState,
+  STALE_MS,
+} from "./video-protocol.js";
 
-async function setSourceTabId(tabId) {
-  if (tabId == null) await chrome.storage.session.remove(["sourceTabId", "latestVideoState"]);
-  else await chrome.storage.session.set({ sourceTabId: tabId });
-}
-
-async function setBadge(tabId, text, color, title) {
-  await chrome.action.setBadgeText({ tabId, text });
-  await chrome.action.setBadgeBackgroundColor({ tabId, color });
-  await chrome.action.setTitle({ tabId, title });
-}
-
-async function updateBadge(tabId, sourceTabId, status = "selected") {
-  const active = sourceTabId === tabId;
-  if (!active) {
-    await setBadge(tabId, "", "#555555", "Use this tab for F1 Data Terminal sync");
-    return;
-  }
-
-  if (status === "ok") {
-    await setBadge(tabId, "OK", "#2f7d4d", "F1 Data Terminal: video detected and syncing");
-  } else if (status === "no-video") {
-    await setBadge(tabId, "NO", "#9a4f25", "F1 Data Terminal: selected tab, but no video detected");
-  } else {
-    await setBadge(tabId, "WAIT", "#6a6a6a", "F1 Data Terminal: waiting for video player");
-  }
-}
-
-async function forwardToTerminal(state) {
-  const terminalTabs = await chrome.tabs.query({
-    url: ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
-  });
-  await Promise.allSettled(terminalTabs.map((tab) => {
-    if (!tab.id) return Promise.resolve();
-    return chrome.tabs.sendMessage(tab.id, {
-      type: "F1_VIDEO_STATE_TO_TERMINAL",
-      state,
+async function badge(tabId, text, title) {
+  try {
+    await chrome.action.setBadgeText({ tabId, text });
+    await chrome.action.setBadgeBackgroundColor({
+      tabId,
+      color: text === "OK" ? "#2f7d4d" : "#6a6a6a",
     });
-  }));
-}
-
-chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab.id) return;
-  const previous = await getSourceTabId();
-  const next = previous === tab.id ? null : tab.id;
-  await setSourceTabId(next);
-
-  if (previous && previous !== next) {
-    try { await updateBadge(previous, next); } catch { /* tab may have closed */ }
+    await chrome.action.setTitle({ tabId, title });
+  } catch {
+    /* Tab closed. */
   }
-  await updateBadge(tab.id, next, next ? "selected" : "off");
+}
+async function deliver(state) {
+  const { terminalTabs = [] } =
+    await chrome.storage.session.get("terminalTabs");
+  await Promise.allSettled(
+    terminalTabs.map(async (id) => {
+      const tab = await chrome.tabs.get(id);
+      if (!isTerminalUrl(tab.url)) return;
+      await chrome.tabs.sendMessage(
+        id,
+        { type: "F1_VIDEO_STATE_TO_TERMINAL", state },
+        { frameId: 0 },
+      );
+    }),
+  );
+}
+async function clearSource() {
+  await chrome.storage.session.remove([
+    "latestVideoState",
+    "elected",
+    "candidates",
+  ]);
+  await deliver(null);
+}
+async function enable(tabId, enabled) {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "F1_PROBE_ENABLE", enabled });
+  } catch {
+    /* Refresh needed. */
+  }
+}
+// Serialize short storage transactions, never network calls. Survives service worker suspension.
+let queue = Promise.resolve();
+function serial(task) {
+  queue = queue
+    .then(task)
+    .catch((error) => console.warn("Video sync:", error.message));
+}
+chrome.action.onClicked.addListener((tab) =>
+  serial(async () => {
+    if (!tab.id) return;
+    if (isTerminalUrl(tab.url)) {
+      const { terminalTabs = [] } =
+        await chrome.storage.session.get("terminalTabs");
+      const paired = terminalTabs.includes(tab.id);
+      await chrome.storage.session.set({
+        terminalTabs: paired
+          ? terminalTabs.filter((id) => id !== tab.id)
+          : [...terminalTabs, tab.id],
+      });
+      await chrome.tabs
+        .sendMessage(
+          tab.id,
+          { type: "F1_VIDEO_STATE_TO_TERMINAL", state: null },
+          { frameId: 0 },
+        )
+        .catch(() => {});
+      await badge(
+        tab.id,
+        paired ? "" : "LINK",
+        paired ? "Pair this terminal" : "Terminal paired; select a video tab",
+      );
+      return;
+    }
+    const { sourceTabId } = await chrome.storage.session.get("sourceTabId");
+    if (sourceTabId) {
+      await enable(sourceTabId, false);
+      await badge(sourceTabId, "", "Use this tab for video sync");
+    }
+    await clearSource();
+    if (sourceTabId === tab.id) {
+      await chrome.storage.session.remove("sourceTabId");
+      return;
+    }
+    await chrome.storage.session.set({ sourceTabId: tab.id });
+    await enable(tab.id, true);
+    await badge(tab.id, "WAIT", "Discovering a video player");
+  }),
+);
+chrome.tabs.onRemoved.addListener((id) =>
+  serial(async () => {
+    const { sourceTabId, terminalTabs = [] } = await chrome.storage.session.get(
+      ["sourceTabId", "terminalTabs"],
+    );
+    await chrome.storage.session.set({
+      terminalTabs: terminalTabs.filter((tab) => tab !== id),
+    });
+    if (sourceTabId === id) {
+      await chrome.storage.session.remove("sourceTabId");
+      await clearSource();
+    }
+  }),
+);
+chrome.tabs.onUpdated.addListener((id, change) => {
+  if (!change.url && change.status !== "loading") return;
+  serial(async () => {
+    const { sourceTabId, terminalTabs = [] } = await chrome.storage.session.get(
+      ["sourceTabId", "terminalTabs"],
+    );
+    if (id === sourceTabId) await clearSource();
+    if (change.url && !isTerminalUrl(change.url))
+      await chrome.storage.session.set({
+        terminalTabs: terminalTabs.filter((tab) => tab !== id),
+      });
+  });
 });
-
-chrome.tabs.onRemoved.addListener(async (tabId) => {
-  const sourceTabId = await getSourceTabId();
-  if (sourceTabId === tabId) await setSourceTabId(null);
-});
-
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (!sender.tab?.id) return;
-
-  void (async () => {
-    const sourceTabId = await getSourceTabId();
-
-    if (message?.type === "F1_TERMINAL_READY") {
-      const stored = await chrome.storage.session.get("latestVideoState");
-      if (stored.latestVideoState) {
-        try {
-          await chrome.tabs.sendMessage(sender.tab.id, {
+  serial(async () => {
+    const {
+      sourceTabId,
+      terminalTabs = [],
+      latestVideoState,
+      elected,
+      candidates = {},
+    } = await chrome.storage.session.get([
+      "sourceTabId",
+      "terminalTabs",
+      "latestVideoState",
+      "elected",
+      "candidates",
+    ]);
+    if (message?.type === "F1_READY") {
+      if (sender.tab.id === sourceTabId)
+        await chrome.tabs.sendMessage(
+          sender.tab.id,
+          { type: "F1_PROBE_ENABLE", enabled: true },
+          { frameId: sender.frameId },
+        );
+      if (
+        sender.frameId === 0 &&
+        isTerminalUrl(sender.url) &&
+        terminalTabs.includes(sender.tab.id)
+      ) {
+        await chrome.tabs.sendMessage(
+          sender.tab.id,
+          {
             type: "F1_VIDEO_STATE_TO_TERMINAL",
-            state: stored.latestVideoState,
-          });
-        } catch {
-          // Terminal content script may still be initializing.
-        }
+            state: parseVideoState(latestVideoState),
+          },
+          { frameId: 0 },
+        );
       }
       return;
     }
-
-    if (sender.tab.id !== sourceTabId) return;
-
-    if (message?.type === "F1_VIDEO_STATUS" && message.found === false) {
-      await updateBadge(sender.tab.id, sourceTabId, "no-video");
+    if (sender.tab.id !== sourceTabId || message?.type !== "F1_VIDEO_STATE")
       return;
+    const state = parseVideoState(message.state);
+    if (!state) return;
+    const key = `${sender.frameId}:${state.sourceId}`;
+    const now = Date.now();
+    // Hold the elected frame/player while it reports fresh samples, even if an ad starts.
+    if (elected && elected.key !== key && now - elected.at <= STALE_MS) return;
+    if (!elected || now - elected.at > STALE_MS) {
+      const fresh = Object.fromEntries(
+        Object.entries(candidates).filter(([, c]) => now - c.at < 1000),
+      );
+      fresh[key] = {
+        at: now,
+        first: candidates[key]?.first ?? now,
+        score: Number.isFinite(message.score)
+          ? Math.max(0, Math.min(1e12, message.score))
+          : 0,
+      };
+      await chrome.storage.session.set({ candidates: fresh });
+      const oldest = Math.min(...Object.values(fresh).map((c) => c.first));
+      if (now - oldest < 350) return;
+      const winner = Object.entries(fresh).sort(
+        (a, b) => b[1].score - a[1].score,
+      )[0]?.[0];
+      if (key !== winner) return;
     }
-
-    if (message?.type !== "F1_VIDEO_STATE" || !message.state) return;
-
-    const state = {
-      ...message.state,
-      connected: true,
-      receivedAt: Date.now(),
+    const identified = {
+      ...state,
+      sourceId: `${sourceTabId}:${sender.frameId}:${state.sourceId}`,
     };
-
-    await chrome.storage.session.set({ latestVideoState: state });
-    await updateBadge(sender.tab.id, sourceTabId, "ok");
-    await forwardToTerminal(state);
-
-    // Keep the original localhost bridge as a fallback for older terminal tabs.
-    fetch("http://localhost:3000/api/video-sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(message.state),
-    }).catch(() => {});
-  })();
+    if (!isNewerState(latestVideoState ?? null, identified)) return;
+    await chrome.storage.session.set({
+      elected: { key, at: now },
+      latestVideoState: identified,
+    });
+    await badge(sourceTabId, "OK", "Video selected and syncing");
+    await deliver(identified);
+  });
 });

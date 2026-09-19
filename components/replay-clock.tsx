@@ -1,100 +1,99 @@
 "use client";
-
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-
-type ReplayClockValue = {
-  sessionStart: number;
-  sessionEnd: number;
-  raceTime: number;
-  elapsed: number;
-  duration: number;
-  playing: boolean;
-  rate: number;
-  syncOffsetMs: number;
-  play: () => void;
-  pause: () => void;
-  toggle: () => void;
-  seek: (elapsedMs: number) => void;
-  nudge: (deltaMs: number) => void;
-  setRate: (rate: number) => void;
-  setSyncOffsetMs: (offset: number) => void;
-};
-
-const ReplayClockContext = createContext<ReplayClockValue | null>(null);
-
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+} from "react";
+import {
+  initialReplay,
+  replayReducer,
+  type VideoAnchor,
+} from "@/lib/replay-state";
+import type { VideoState } from "@/shared/video-protocol";
+import { useBrowserVideoSync } from "./browser-video-sync";
+function useClock(
+  sessionStart: string,
+  sessionEnd: string,
+  sessionKey: number,
+) {
+  const [state, dispatch] = useReducer(replayReducer, null, () =>
+    initialReplay(Date.parse(sessionStart), Date.parse(sessionEnd), sessionKey),
+  );
+  const receive = useCallback(
+    (video: VideoState | null) =>
+      dispatch({ type: "video", video, now: Date.now() }),
+    [],
+  );
+  useBrowserVideoSync(receive);
+  useEffect(() => {
+    if (!state.playing) return;
+    let last = performance.now();
+    const timer = setInterval(() => {
+      const now = performance.now();
+      dispatch({ type: "tick", delta: now - last, now: Date.now() });
+      last = now;
+    }, 100);
+    return () => clearInterval(timer);
+  }, [state.playing, state.following]);
+  const actions = useMemo(
+    () => ({
+      play: () => dispatch({ type: "play" }),
+      pause: () => dispatch({ type: "pause" }),
+      toggle: () => dispatch({ type: "toggle" }),
+      seek: (value: number) => dispatch({ type: "seek", value }),
+      nudge: (value: number) => dispatch({ type: "nudge", value }),
+      setRate: (value: number) => dispatch({ type: "rate", value }),
+      setSyncOffsetMs: (value: number) => dispatch({ type: "offset", value }),
+      matchVideo: (anchor: VideoAnchor) => dispatch({ type: "anchor", anchor }),
+      setFollowing: (enabled: boolean) => dispatch({ type: "follow", enabled }),
+      clearVideo: () => dispatch({ type: "clear" }),
+    }),
+    [],
+  );
+  return {
+    ...actions,
+    sessionStart: state.start,
+    sessionEnd: state.start + state.duration,
+    raceTime:
+      state.start +
+      Math.max(0, Math.min(state.duration, state.elapsed + state.offset)),
+    elapsed: state.elapsed,
+    duration: state.duration,
+    playing: state.playing,
+    rate: state.rate,
+    syncOffsetMs: state.offset,
+    video: state.video,
+    videoAnchor: state.anchor,
+    following: state.following,
+    status: state.status,
+  };
+}
+const ReplayClockContext = createContext<ReturnType<typeof useClock> | null>(
+  null,
+);
 export function ReplayClockProvider({
   sessionStart,
   sessionEnd,
+  sessionKey,
   children,
 }: {
   sessionStart: string;
   sessionEnd: string;
+  sessionKey: number;
   children: React.ReactNode;
 }) {
-  const start = Date.parse(sessionStart);
-  const end = Date.parse(sessionEnd);
-  const duration = Math.max(0, end - start);
-  const [elapsed, setElapsed] = useState(0);
-  const [playing, setPlaying] = useState(false);
-  const [rate, setRateState] = useState(1);
-  const [syncOffsetMs, setSyncOffsetMs] = useState(0);
-  const lastRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!playing) {
-      lastRef.current = null;
-      return;
-    }
-
-    lastRef.current = performance.now();
-    const timer = window.setInterval(() => {
-      const now = performance.now();
-      const previous = lastRef.current ?? now;
-      const delta = (now - previous) * rate;
-      lastRef.current = now;
-      setElapsed((current) => {
-        const next = Math.min(duration, current + delta);
-        if (next >= duration) setPlaying(false);
-        return next;
-      });
-    }, 100);
-
-    return () => window.clearInterval(timer);
-  }, [playing, rate, duration]);
-
-  const seek = useCallback((next: number) => setElapsed(Math.max(0, Math.min(duration, next))), [duration]);
-  const nudge = useCallback((delta: number) => setElapsed((current) => Math.max(0, Math.min(duration, current + delta))), [duration]);
-  const play = useCallback(() => setPlaying(true), []);
-  const pause = useCallback(() => setPlaying(false), []);
-  const toggle = useCallback(() => setPlaying((v) => !v), []);
-  const setRate = useCallback((nextRate: number) => setRateState(nextRate), []);
-
-  const value = useMemo<ReplayClockValue>(
-    () => ({
-      sessionStart: start,
-      sessionEnd: end,
-      raceTime: start + elapsed + syncOffsetMs,
-      elapsed,
-      duration,
-      playing,
-      rate,
-      syncOffsetMs,
-      play,
-      pause,
-      toggle,
-      seek,
-      nudge,
-      setRate,
-      setSyncOffsetMs,
-    }),
-    [start, end, elapsed, syncOffsetMs, duration, playing, rate, play, pause, toggle, seek, nudge, setRate],
+  const value = useClock(sessionStart, sessionEnd, sessionKey);
+  return (
+    <ReplayClockContext.Provider value={value}>
+      {children}
+    </ReplayClockContext.Provider>
   );
-
-  return <ReplayClockContext.Provider value={value}>{children}</ReplayClockContext.Provider>;
 }
-
 export function useReplayClock() {
   const value = useContext(ReplayClockContext);
-  if (!value) throw new Error("useReplayClock must be used inside ReplayClockProvider");
+  if (!value) throw new Error("Replay clock missing");
   return value;
 }

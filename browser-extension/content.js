@@ -1,34 +1,35 @@
-const PROBE_SOURCE = "F1_DATA_TERMINAL_VIDEO_PROBE";
-const TERMINAL_SOURCE = "F1_DATA_TERMINAL_EXTENSION";
-const isTerminal = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-
+const terminal =
+  window === window.top &&
+  ["http://localhost:3000", "http://127.0.0.1:3000"].includes(location.origin);
+let enabled = false;
 window.addEventListener("message", (event) => {
-  if (event.source !== window || event.data?.source !== PROBE_SOURCE) return;
-
-  if (event.data.found && event.data.state) {
-    chrome.runtime.sendMessage({
+  if (
+    !enabled ||
+    event.source !== window ||
+    event.data?.source !== "F1_VIDEO_PROBE"
+  )
+    return;
+  chrome.runtime
+    .sendMessage({
       type: "F1_VIDEO_STATE",
       state: event.data.state,
-    }).catch(() => {
-      // Extension context can briefly disappear during navigation/reload.
-    });
-  } else {
-    chrome.runtime.sendMessage({
-      type: "F1_VIDEO_STATUS",
-      found: false,
-      capturedAt: event.data.capturedAt ?? Date.now(),
-    }).catch(() => {});
+      score: event.data.score,
+    })
+    .catch(() => {});
+});
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === "F1_PROBE_ENABLE") {
+    enabled = message.enabled === true;
+    window.postMessage(
+      { source: "F1_PROBE_CONTROL", enabled },
+      location.origin === "null" ? "*" : location.origin,
+    );
+  }
+  if (terminal && message?.type === "F1_VIDEO_STATE_TO_TERMINAL") {
+    window.postMessage(
+      { source: "F1_DATA_TERMINAL_EXTENSION", state: message.state },
+      location.origin,
+    );
   }
 });
-
-chrome.runtime.onMessage.addListener((message) => {
-  if (!isTerminal || message?.type !== "F1_VIDEO_STATE_TO_TERMINAL") return;
-  window.postMessage({
-    source: TERMINAL_SOURCE,
-    state: message.state,
-  }, location.origin);
-});
-
-if (isTerminal) {
-  chrome.runtime.sendMessage({ type: "F1_TERMINAL_READY" }).catch(() => {});
-}
+chrome.runtime.sendMessage({ type: "F1_READY" }).catch(() => {});

@@ -14,7 +14,7 @@
   display: block;
   font-size: 9px;
   font-weight: 900;
-  letter-spacing: .14em;
+  letter-spacing: 0.14em;
 }
 .gForceHeading > div > small {
   display: block;
@@ -32,7 +32,7 @@
 }
 .gForceLayout {
   display: grid;
-  grid-template-columns: minmax(116px, .8fr) minmax(180px, 1.2fr);
+  grid-template-columns: minmax(116px, 0.8fr) minmax(180px, 1.2fr);
   gap: 12px;
   align-items: center;
   border: 1px solid var(--line);
@@ -54,7 +54,7 @@
   display: block;
   color: var(--muted);
   font-size: 8px;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 .gForceReadouts strong {
   display: inline-block;
@@ -85,13 +85,13 @@
 .gLabel {
   fill: #647382;
   font-size: 8px;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 .gTrail {
   fill: #dce5ed;
 }
 .gCurrentHalo {
-  fill: rgba(255,255,255,.05);
+  fill: rgba(255, 255, 255, 0.05);
   stroke-width: 2;
 }
 .gCurrent {
@@ -105,7 +105,13 @@
   line-height: 1.4;
 }
 @media (max-width: 700px) {
-  .gForceLayout { grid-template-columns: 1fr; }
-  .gForceReadouts { grid-template-columns: repeat(3, 1fr); }
-  .gForceReadouts > div { min-height: 52px; }
+  .gForceLayout {
+    grid-template-columns: 1fr;
+  }
+  .gForceReadouts {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .gForceReadouts > div {
+    min-height: 52px;
+  }
 }

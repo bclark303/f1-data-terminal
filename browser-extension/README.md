@@ -1,50 +1,27 @@
-# F1 Data Terminal Video Sync Companion
+# Video Sync Companion 0.3
 
-This unpacked Chromium extension sends only HTML5 video playback state to a locally running F1 Data Terminal at `http://localhost:3000`.
+Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at `http://localhost:3000` or `http://127.0.0.1:3000`. All HTTP sync has been removed.
 
-It does not capture video, audio, screenshots, DRM keys, cookies, or account credentials. The payload contains only:
+## Install and pair
 
-- current playback time
-- duration
-- play/pause state
-- playback rate
-- page title and URL
-- sample timestamp
+1. Start the terminal locally, then open it in Chrome or Edge.
+2. Open `chrome://extensions` or `edge://extensions`, enable Developer mode, and load this folder unpacked. Existing users: **Reload** the extension and refresh both terminal and video tabs.
+3. With the **terminal tab active**, click the extension button. `LINK` confirms pairing. Clicking again unpairs it.
+4. With the **video tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. If no player appears, initialize playback and refresh the source tab. Clicking again disconnects.
+5. Return to the terminal. Open SYNC, select the next broadcast lap, and press MATCH NOW at the lap change.
 
-The probe runs at `document_start` in all frames and tracks video elements created inside open or closed shadow roots. This is specifically intended to cope with modern embedded players such as F1 TV while remaining generic enough for other HTML5 replay services.
+The terminal follows pause, play, seeks, playback rate, and detected stalls. Losing the source pauses the clock. Changing media invalidates the anchor. Manual replay controls turn off follow; ±1 / ±0.1 second offset buttons preserve it. Without the companion, MATCH NOW starts the terminal's manual clock.
 
-## Install in Chrome or Edge
+## Scope and privacy
 
-1. Run the terminal locally with `npm run dev`.
-2. Open `chrome://extensions` in Chrome, or `edge://extensions` in Edge.
-3. Enable **Developer mode**.
-4. Choose **Load unpacked** and select this repository's `browser-extension` folder. If it was already loaded, click **Reload** after pulling new code.
-5. Refresh both the F1 TV replay tab and the local terminal tab.
-6. Start or pause the replay so the player is fully initialized.
-7. Click the **F1 Data Terminal Video Sync** extension button once while the F1 TV tab is active.
+Only paired terminal tabs on exact allowed origins receive state, in the top frame. Other localhost ports cannot retrieve it. The HTTP endpoint returns 410 and no state. Pairing lasts for the browser session; repeat it after browser restart.
 
-The extension badge is diagnostic:
+Messages contain a version, random media identity, sequence, playback time, duration, paused/buffering/ended state, playback rate, title (up to 240 characters), and timestamp. They contain **no URL**, video, audio, screenshot, cookie, credentials, or DRM keys. Page titles may themselves contain personal information, so only pair terminal tabs you trust.
 
-- `WAIT` — tab selected; waiting for the player to initialize
-- `NO` — selected tab is reachable, but no HTML5 video element has been detected
-- `OK` — video clock detected and being forwarded to the terminal
-- no badge — that tab is not selected as the sync source
+A minimal document-start hook retains weak references to closed shadow roots. Observers, periodic discovery, and playback reporting activate only in the selected source tab. Detached videos are discarded. Each frame discovers a candidate; the worker elects one player and holds it while fresh samples arrive. Source selection and election survive worker suspension. Old and out-of-order samples are rejected.
 
-When the badge reaches `OK`, the terminal replay bar should change from `VIDEO ○` to `VIDEO ●`.
+For videos with edits or ads inserted into the same timeline, match again after the discontinuity. Providers that reuse the same element and source without any detectable media change can require manual rematching. To reselect among multiple players, disconnect and reconnect after the desired player is initialized.
 
-Click the extension button again to disconnect that tab. Clicking it in a different video tab moves the sync source to that tab.
+## Development
 
-## Synchronize a replay
-
-1. In the terminal click **SYNC**.
-2. Choose a lap number that is about to appear on the broadcast.
-3. The instant the broadcast lap counter changes to that lap, click **MATCH NOW**.
-4. When the companion is connected, the terminal records both the race timestamp and browser-video timestamp and enables **AUTO FOLLOW**.
-5. From then on video pause, play, seek and playback-rate changes drive the terminal clock.
-6. Use the ±1 s and ±0.1 s controls for fine adjustment if the broadcast graphic itself is slightly delayed from the timing feed.
-
-Manual lap matching works without the extension; the terminal simply continues from the matched race timestamp using its own replay clock.
-
-## Transport
-
-Version 0.2 sends playback state directly from the selected video tab to the local terminal tab through the extension messaging system. It also retains the original localhost HTTP bridge as a fallback. This avoids depending on browser local-network permissions for the normal path.
+`shared/video-protocol.js` in the repository is canonical. Run `npm run extension:build` after changing it; CI checks that this folder's generated copy matches. The background worker is an ES module.
