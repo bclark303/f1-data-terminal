@@ -196,6 +196,48 @@ test("panel stays reachable when workspace shrinks", () => {
   );
 });
 
+test("2026 telemetry tolerates unavailable channels and incomplete location samples", () => {
+  const [telemetry] = normalizeData<{
+    drs: number | null;
+    n_gear: number | null;
+    rpm: number | null;
+    speed: number | null;
+  }>("car_data", [
+    {
+      date: date(0),
+      driver_number: 1,
+      brake: 0,
+      throttle: 72,
+      rpm: 11800,
+      speed: 294,
+      drs: null,
+      n_gear: 8,
+    },
+  ]);
+  assert.equal(telemetry.speed, 294);
+  assert.equal(telemetry.drs, null);
+
+  const locations = normalizeData<LocationPoint>("location", [
+    {
+      date: date(0),
+      driver_number: 1,
+      x: null,
+      y: null,
+      z: null,
+    },
+    {
+      date: date(250),
+      driver_number: 1,
+      x: 100,
+      y: 200,
+      z: null,
+    },
+  ]);
+  assert.equal(locations.length, 1);
+  assert.equal(locations[0].x, 100);
+  assert.equal(locations[0].z, null);
+});
+
 test("provider pedal sentinel values become unknown without losing valid speed samples", () => {
   const [row] = normalizeData<{
     brake: number | null;
