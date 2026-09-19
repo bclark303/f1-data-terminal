@@ -128,7 +128,7 @@ export const openF1 = {
   raceSessions: () =>
     query<Session>("sessions", {
       session_name: "Race",
-      "date_start>=": "2023-01-01",
+      "date_start>": "2023-01-01",
     }),
   drivers: (key: number) => query<Driver>("drivers", { session_key: key }),
   weather: (key: number) => query<Weather>("weather", { session_key: key }),
