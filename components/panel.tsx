@@ -214,19 +214,7 @@ export function Panel({
           {kicker && <div className="panelKicker">{kicker}</div>}
           <h2>{title}</h2>
         </div>
-        <div className="panelActions">
-          {actions}
-          {id === "timingPanel" && (
-            <button
-              className="layoutResetButton"
-              onClick={() =>
-                window.dispatchEvent(new Event("f1-terminal-reset-layout"))
-              }
-            >
-              RESET LAYOUT
-            </button>
-          )}
-        </div>
+        <div className="panelActions">{actions}</div>
       </header>
       <div className="panelBody">{children}</div>
       {(["n", "s", "e", "w", "ne", "nw", "se", "sw"] as Edge[]).map((edge) => (

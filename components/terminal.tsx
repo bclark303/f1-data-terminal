@@ -180,6 +180,14 @@ function TerminalContent({
             {session.year} {session.country_name.toUpperCase()} GRAND PRIX
           </div>
         </div>
+        <button
+          className="layoutResetButton"
+          onClick={() =>
+            window.dispatchEvent(new Event("f1-terminal-reset-layout"))
+          }
+        >
+          RESET LAYOUT
+        </button>
         <div className="sessionStats">
           <span>{session.circuit_short_name}</span>
           <strong>LAP {currentLap}</strong>
