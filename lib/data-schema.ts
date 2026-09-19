@@ -5,13 +5,15 @@ const date = z
   .string()
   .refine((value) => Number.isFinite(Date.parse(value)), "Invalid timestamp");
 const nullableNumber = number.nullable().default(null);
+const nullableChannel = <T extends z.ZodTypeAny>(schema: T) =>
+  schema.nullish().transform((value) => value ?? null);
 // The provider sometimes emits byte sentinel values (for example 104) after a car stops.
 // Preserve the timestamp/speed sample but represent unavailable pedal channels as unknown.
 const pedal = number
   .min(0)
   .max(255)
-  .nullable()
-  .transform((value) => (value !== null && value <= 100 ? value : null));
+  .nullish()
+  .transform((value) => (value !== null && value !== undefined && value <= 100 ? value : null));
 const driver = { driver_number: id };
 const dated = { date };
 export const schemas = {
@@ -94,13 +96,19 @@ export const schemas = {
     ...dated,
     ...driver,
     brake: pedal,
-    drs: number.int(),
-    n_gear: number.int().min(0).max(8),
-    rpm: number.nonnegative(),
-    speed: number.nonnegative().max(500),
+    drs: nullableChannel(number.int()),
+    n_gear: nullableChannel(number.int().min(0).max(8)),
+    rpm: nullableChannel(number.nonnegative()),
+    speed: nullableChannel(number.nonnegative().max(500)),
     throttle: pedal,
   }),
-  location: z.object({ ...dated, ...driver, x: number, y: number, z: number }),
+  location: z.object({
+    ...dated,
+    ...driver,
+    x: nullableChannel(number),
+    y: nullableChannel(number),
+    z: nullableChannel(number),
+  }),
 };
 export type Endpoint = keyof typeof schemas;
 export function normalizeData<T>(endpoint: Endpoint, input: unknown): T[] {
@@ -114,6 +122,14 @@ export function normalizeData<T>(endpoint: Endpoint, input: unknown): T[] {
         `Invalid ${endpoint} row: ${result.error.issues[0]?.path.join(".")}`,
       );
     const row = result.data as Record<string, unknown>;
+    if (endpoint === "location" && (row.x === null || row.y === null)) continue;
+    if (
+      endpoint === "car_data" &&
+      ["rpm", "speed", "n_gear", "throttle", "brake", "drs"].every(
+        (key) => row[key] === null,
+      )
+    )
+      continue;
     if (typeof row.date === "string")
       row.date = new Date(row.date).toISOString();
     if (typeof row.date_start === "string")
