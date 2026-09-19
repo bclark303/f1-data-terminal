@@ -22,13 +22,14 @@ export const TelemetryPanel = memo(function TelemetryPanel({
     [index, raceTime],
   );
 
-  const drs = !current
-    ? "—"
-    : [10, 12, 14].includes(current.drs)
-      ? "OPEN"
-      : current.drs === 8
-        ? "ARMED"
-        : "CLOSED";
+  const drs =
+    !current || current.drs === null
+      ? "—"
+      : [10, 12, 14].includes(current.drs)
+        ? "OPEN"
+        : current.drs === 8
+          ? "ARMED"
+          : "CLOSED";
 
   return (
     <div className="telemetryBlock">
@@ -56,16 +57,16 @@ export const TelemetryPanel = memo(function TelemetryPanel({
       <div className="telemetryLiveGrid">
         <TelemetryMetric
           label="Speed"
-          value={current ? `${current.speed}` : "—"}
+          value={current?.speed != null ? `${current.speed}` : "—"}
           unit="km/h"
         />
         <TelemetryMetric
           label="Gear"
-          value={current ? `${current.n_gear}` : "—"}
+          value={current?.n_gear != null ? `${current.n_gear}` : "—"}
         />
         <TelemetryMetric
           label="RPM"
-          value={current ? current.rpm.toLocaleString() : "—"}
+          value={current?.rpm != null ? current.rpm.toLocaleString() : "—"}
         />
         <TelemetryMetric label="DRS" value={drs} active={drs === "OPEN"} />
       </div>
