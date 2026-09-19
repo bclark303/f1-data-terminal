@@ -13,6 +13,7 @@ import {
   selectSession,
 } from "../lib/sessions";
 import { readJsonBounded } from "../lib/openf1";
+import { parseAutoSyncMetadata } from "../lib/auto-sync";
 const state = (patch = {}) => ({
   version: 1,
   sourceId: "source",
@@ -176,6 +177,18 @@ test("race catalogue exposes completed historical races and selects requested se
 test("download limit aborts oversized provider data", async () => {
   await assert.rejects(readJsonBounded(new Response("123456789"), 4), /limit/);
   assert.deepEqual(await readJsonBounded(new Response("[1,2]")), [1, 2]);
+});
+test("automatic sync metadata accepts numeric strings and rejects invalid offsets", () => {
+  assert.deepEqual(
+    parseAutoSyncMetadata({
+      session_start: "1902.5",
+      f1tv_content_id: 123456,
+    }),
+    { sessionStartSec: 1902.5, contentId: "123456" },
+  );
+  assert.equal(parseAutoSyncMetadata({ session_start: -1 }), null);
+  assert.equal(parseAutoSyncMetadata({ session_start: "broken" }), null);
+  assert.equal(parseAutoSyncMetadata(null), null);
 });
 
 test("optional provider failure preserves other datasets and supports a successful retry", async () => {
