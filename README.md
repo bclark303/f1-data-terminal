@@ -26,11 +26,13 @@ Open http://localhost:3000. For normal use, `npm run build && npm start` runs a 
 
 ## Video companion
 
-See [browser-extension/README.md](browser-extension/README.md). Reload the unpacked extension after this update. Version 0.3 requires explicitly pairing the terminal before selecting the video tab. The old HTTP bridge is retired and returns 410; it stores no playback metadata.
+See [browser-extension/README.md](browser-extension/README.md). Version 0.3 requires explicitly pairing the terminal before selecting the video tab. The old HTTP bridge is retired and returns 410; it stores no playback metadata.
 
-MATCH NOW records the race, video source, and media timestamp. Auto follow tracks pause, seek, speed, and stalls; disconnect pauses the terminal. A different media source invalidates the anchor. Manual replay controls disengage follow; fine offset buttons preserve it. Without a companion, MATCH NOW seeks and starts the manual clock. Reloading or changing the race clears the anchor.
+When a paired video source appears, the terminal now attempts **automatic replay alignment**. It requests the selected session's public, curated F1 TV race-start offset from MultiViewer's sync metadata API and anchors that video timestamp to OpenF1's first Lap 1 timestamp. No F1 TV URL, account data, cookies, video, audio, screenshot, or DRM information is sent to the lookup service; only the public OpenF1 meeting/session identifiers are used. Successful auto-sync follows pause, seek, speed, and stalls immediately.
 
-For a cut/edited broadcast, match again after each discontinuity. The companion detects HTML5 media state, not broadcast content, so identical video URLs reused internally by a provider without a new media element/source may require manual rematching. Multiple frames are supported, but one elected player remains authoritative until it stops reporting. To reselect a player, disconnect and reconnect the source tab.
+MATCH NOW remains the fallback when automatic metadata is unavailable or a particular replay has been edited differently. Manual replay controls disengage follow without destroying the anchor; fine offset buttons preserve follow. Clearing an automatic anchor does not immediately recreate it for the same selected video source. Reloading/changing the race or selecting a new video source allows automatic matching again.
+
+For a cut/edited broadcast, match again after each discontinuity. The companion detects HTML5 media state, not broadcast content, so it cannot itself verify that the selected F1 TV replay is the same race selected in the terminal. Multiple frames are supported, but one elected player remains authoritative until it stops reporting. To reselect a player, disconnect and reconnect the source tab.
 
 ## Architecture and data policy
 
@@ -41,6 +43,7 @@ For a cut/edited broadcast, match again after each discontinuity. The companion 
 - Client cache: 12 datasets / approximately 48 MiB of serialized text, one-hour TTL. Shared downloads are canceled when no consumers remain; already-running shared server ingestion may finish. Error controls explicitly retry the same selection.
 - `lib/replay-index.ts`: sorted numeric time indexes, bounded window lookup, completion-aware lap summaries, and position quality rules. No per-tick full telemetry scans.
 - `lib/replay-state.ts`: pure clock/follow state machine. `shared/video-protocol.js` validates both sides of extension messaging; `npm run extension:build` generates the extension copy.
+- `lib/auto-sync.ts` and `/api/auto-sync`: bounded, best-effort lookup of public MultiViewer session-start metadata used to align the F1 TV video clock automatically. Failure degrades to manual lap matching.
 - `components/panel.tsx`: only window layout, persistence, and interaction. `track-viewport.tsx` owns camera pan/zoom/follow without DOM queries into another component.
 
 The source can access its own page-world probe messages; treat them as untrusted media metadata. Validation prevents malformed clocks, and the extension never forwards from unselected tabs. Terminal pairing and exact-origin checks isolate normal unrelated local applications. Pairing is browser-session scoped; pair again after restarting the browser. No full URLs, video/audio, cookies, screenshots, or DRM information are transmitted.
