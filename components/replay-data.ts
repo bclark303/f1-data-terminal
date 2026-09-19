@@ -1,106 +1,115 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { CarDataPoint, LocationPoint } from "@/lib/types";
-
-const clientCache = new Map<string, Promise<unknown>>();
-
-async function fetchCached<T>(url: string): Promise<T> {
-  let pending = clientCache.get(url) as Promise<T> | undefined;
-  if (!pending) {
-    pending = fetch(url).then(async (response) => {
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Replay data request failed: ${response.status}`);
-      }
-      return response.json() as Promise<T>;
-    });
-    clientCache.set(url, pending);
-    pending.catch(() => clientCache.delete(url));
+import { BoundedCache } from "@/lib/cache";
+import { normalizeData, type Endpoint } from "@/lib/data-schema";
+const cache = new BoundedCache<unknown[]>(12, 48 * 1024 * 1024, 3600000);
+const pending = new Map<
+  string,
+  {
+    promise: Promise<unknown[]>;
+    controller: AbortController;
+    consumers: number;
   }
-  return pending;
-}
-
-function buildUrl(mode: "telemetry" | "track", sessionKey: number, driverNumber: number) {
-  const params = new URLSearchParams({
-    mode,
-    sessionKey: String(sessionKey),
-    driver: String(driverNumber),
-  });
-  return `/api/replay-data?${params.toString()}`;
-}
-
-function useRemoteData<T>(url: string | null) {
-  const [settled, setSettled] = useState<{ url: string | null; data: T[]; error: string | null }>({
-    url: null,
-    data: [],
-    error: null,
-  });
-
-  useEffect(() => {
-    let active = true;
-    if (!url) return;
-
-    fetchCached<T[]>(url).then(
-      (data) => {
-        if (active) setSettled({ url, data, error: null });
-      },
-      (error: unknown) => {
-        if (active) {
-          setSettled({
-            url,
-            data: [],
-            error: error instanceof Error ? error.message : "Replay data request failed",
-          });
-        }
-      },
-    );
-
-    return () => {
-      active = false;
-    };
-  }, [url]);
-
-  if (!url) return { data: [] as T[], loading: false, error: null as string | null };
-  const current = settled.url === url;
+>();
+function acquire(url: string, endpoint: Endpoint) {
+  const cached = cache.get(url);
+  if (cached) return { promise: Promise.resolve(cached), release: () => {} };
+  let entry = pending.get(url);
+  if (!entry) {
+    const controller = new AbortController();
+    const promise = fetch(url, {
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(120000)]),
+    }).then(async (response) => {
+      if (!response.ok)
+        throw new Error(
+          (await response.json().catch(() => null))?.error ??
+            "Data request failed",
+        );
+      const rows = normalizeData<unknown>(endpoint, await response.json());
+      cache.set(url, rows, JSON.stringify(rows).length * 2);
+      return rows;
+    });
+    entry = { promise, controller, consumers: 0 };
+    pending.set(url, entry);
+    const current = entry;
+    void promise
+      .finally(() => {
+        if (pending.get(url) === current) pending.delete(url);
+      })
+      .catch(() => {});
+  }
+  entry.consumers++;
+  const current = entry;
   return {
-    data: current ? settled.data : [],
-    loading: !current,
-    error: current ? settled.error : null,
+    promise: current.promise,
+    release: () => {
+      current.consumers--;
+      // Allow same-turn Strict Mode re-subscription and sharing between geometry and driver views.
+      queueMicrotask(() => {
+        if (!current.consumers && pending.get(url) === current) {
+          pending.delete(url);
+          current.controller.abort();
+        }
+      });
+    },
   };
 }
-
-/**
- * OpenF1's historical high-rate endpoints are most reliable when queried by
- * session + driver. Fetch the selected driver's complete telemetry once and
- * seek through it locally; switching back to that driver is then instant.
- */
-export function useDriverTelemetry(sessionKey: number, driverNumber: number) {
-  const url = useMemo(
-    () => driverNumber ? buildUrl("telemetry", sessionKey, driverNumber) : null,
-    [sessionKey, driverNumber],
+function useRemoteData<T>(url: string | null, endpoint: Endpoint) {
+  const [attempt, setAttempt] = useState(0);
+  const [settled, setSettled] = useState<{
+    key: string;
+    data: T[];
+    error: string | null;
+  } | null>(null);
+  const key = `${url}:${attempt}`;
+  useEffect(() => {
+    if (!url) return;
+    let active = true;
+    const request = acquire(url, endpoint);
+    request.promise.then(
+      (data) => {
+        if (active) setSettled({ key, data: data as T[], error: null });
+      },
+      (error) => {
+        if (active)
+          setSettled({
+            key,
+            data: [],
+            error: error.message ?? "Data unavailable",
+          });
+      },
+    );
+    return () => {
+      active = false;
+      request.release();
+    };
+  }, [url, endpoint, key]);
+  return {
+    data: settled?.key === key ? settled.data : ([] as T[]),
+    loading: Boolean(url && settled?.key !== key),
+    error: settled?.key === key ? settled.error : null,
+    retry: () => {
+      if (url) cache.delete(url);
+      setAttempt((value) => value + 1);
+    },
+  };
+}
+function buildUrl(mode: string, session: number, driver: number) {
+  return driver
+    ? `/api/replay-data?${new URLSearchParams({ mode, sessionKey: String(session), driver: String(driver) })}`
+    : null;
+}
+export function useDriverTelemetry(session: number, driver: number) {
+  return useRemoteData<CarDataPoint>(
+    buildUrl("telemetry", session, driver),
+    "car_data",
   );
-  return useRemoteData<CarDataPoint>(url);
 }
-
-/**
- * Fetch a driver's complete location stream. The same client cache is shared
- * with circuit-geometry requests, so when the selected driver is also the
- * geometry driver this does not generate a second download.
- */
-export function useDriverLocation(sessionKey: number, driverNumber: number) {
-  const url = useMemo(
-    () => driverNumber ? buildUrl("track", sessionKey, driverNumber) : null,
-    [sessionKey, driverNumber],
+export function useDriverLocation(session: number, driver: number) {
+  return useRemoteData<LocationPoint>(
+    buildUrl("track", session, driver),
+    "location",
   );
-  return useRemoteData<LocationPoint>(url);
 }
-
-/**
- * One driver's full-session location stream is enough to recover a clean lap
- * and construct the circuit geometry. Field positions are derived from lap
- * progress so we do not need twenty simultaneous 3.7 Hz location streams.
- */
-export function useTrackGeometry(sessionKey: number, driverNumber: number) {
-  return useDriverLocation(sessionKey, driverNumber);
-}
+export const useTrackGeometry = useDriverLocation;

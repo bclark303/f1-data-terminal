@@ -1,15 +1,13 @@
 {
   "manifest_version": 3,
   "name": "F1 Data Terminal Video Sync",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Sends HTML5 video playback state to a local F1 Data Terminal for replay synchronization.",
   "permissions": ["activeTab", "tabs", "storage"],
-  "host_permissions": [
-    "http://localhost:3000/*",
-    "http://127.0.0.1:3000/*"
-  ],
+  "host_permissions": ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_title": "Use this tab for F1 Data Terminal sync"

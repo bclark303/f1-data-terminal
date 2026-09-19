@@ -23,12 +23,20 @@ export function ReplaySyncProvider({
   lapAnchors: LapSyncAnchor[];
   children: React.ReactNode;
 }) {
-  const value = useMemo(() => ({ sessionKey, lapAnchors }), [sessionKey, lapAnchors]);
-  return <ReplaySyncContext.Provider value={value}>{children}</ReplaySyncContext.Provider>;
+  const value = useMemo(
+    () => ({ sessionKey, lapAnchors }),
+    [sessionKey, lapAnchors],
+  );
+  return (
+    <ReplaySyncContext.Provider value={value}>
+      {children}
+    </ReplaySyncContext.Provider>
+  );
 }
 
 export function useReplaySync() {
   const value = useContext(ReplaySyncContext);
-  if (!value) throw new Error("useReplaySync must be used inside ReplaySyncProvider");
+  if (!value)
+    throw new Error("useReplaySync must be used inside ReplaySyncProvider");
   return value;
 }

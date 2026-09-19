@@ -24,14 +24,14 @@ export type Driver = {
 };
 
 export type Weather = {
-  air_temperature: number;
+  air_temperature: number | null;
   date: string;
-  humidity: number;
-  pressure: number;
-  rainfall: number;
-  track_temperature: number;
-  wind_direction: number;
-  wind_speed: number;
+  humidity: number | null;
+  pressure: number | null;
+  rainfall: number | null;
+  track_temperature: number | null;
+  wind_direction: number | null;
+  wind_speed: number | null;
 };
 
 export type RaceControlMessage = {
@@ -87,12 +87,12 @@ export type LocationPoint = {
 };
 
 export type CarDataPoint = {
-  brake: number;
+  brake: number | null;
   date: string;
   driver_number: number;
   drs: number;
   n_gear: number;
   rpm: number;
   speed: number;
-  throttle: number;
+  throttle: number | null;
 };

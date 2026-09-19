@@ -1,0 +1,146 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import vm from "node:vm";
+import { readFileSync } from "node:fs";
+import {
+  isTerminalUrl,
+  parseVideoState,
+  isNewerState,
+  STALE_MS,
+} from "../shared/video-protocol.js";
+function harness() {
+  let listener: (m: unknown, s: unknown) => void = () => {};
+  const storage: Record<string, unknown> = {
+    sourceTabId: 42,
+    terminalTabs: [99],
+  };
+  const sent: Array<{
+    tab: number;
+    message: { state?: { currentTime: number } | null };
+    frame: number;
+  }> = [];
+  let now = 10000;
+  const chrome = {
+    storage: {
+      session: {
+        get: async (key: string | string[]) =>
+          Object.fromEntries(
+            (Array.isArray(key) ? key : [key]).map((k) => [k, storage[k]]),
+          ),
+        set: async (values: object) => Object.assign(storage, values),
+        remove: async (keys: string | string[]) =>
+          (Array.isArray(keys) ? keys : [keys]).forEach(
+            (k) => delete storage[k],
+          ),
+      },
+    },
+    action: {
+      setBadgeText: async () => {},
+      setBadgeBackgroundColor: async () => {},
+      setTitle: async () => {},
+      onClicked: { addListener: () => {} },
+    },
+    tabs: {
+      get: async (id: number) => ({
+        id,
+        url: id === 99 ? "http://localhost:3000/" : "http://localhost:4321/",
+      }),
+      sendMessage: async (
+        tab: number,
+        message: { state?: { currentTime: number } },
+        options: { frameId: number },
+      ) => sent.push({ tab, message, frame: options.frameId }),
+      onRemoved: { addListener: () => {} },
+      onUpdated: { addListener: () => {} },
+    },
+    runtime: {
+      onMessage: {
+        addListener: (fn: typeof listener) => {
+          listener = fn;
+        },
+      },
+    },
+  };
+  class Clock extends Date {
+    static now() {
+      return now;
+    }
+  }
+  const source = readFileSync(
+    new URL("../browser-extension/background.js", import.meta.url),
+    "utf8",
+  ).replace(/^import[\s\S]*?from "\.\/video-protocol\.js";\s*/, "");
+  vm.runInNewContext(source, {
+    chrome,
+    Date: Clock,
+    console,
+    isTerminalUrl,
+    parseVideoState: (v: unknown) => parseVideoState(v, now),
+    isNewerState,
+    STALE_MS,
+  });
+  return {
+    storage,
+    sent,
+    advance: (ms: number) => {
+      now += ms;
+    },
+    send: async (message: unknown, sender: unknown) => {
+      listener(message, sender);
+      await new Promise((resolve) => setImmediate(resolve));
+    },
+    state: (time: number, sourceId = "player", sequence = 1) => ({
+      version: 1,
+      sourceId,
+      sequence,
+      currentTime: time,
+      duration: 5000,
+      playbackRate: 1,
+      paused: false,
+      buffering: false,
+      ended: false,
+      title: "Race",
+      capturedAt: now,
+    }),
+  };
+}
+test("elected frame excludes competing video clocks and delivers only to paired main frame", async () => {
+  const h = harness();
+  await h.send(
+    { type: "F1_VIDEO_STATE", score: 10, state: h.state(100) },
+    { tab: { id: 42 }, frameId: 1 },
+  );
+  h.advance(400);
+  await h.send(
+    { type: "F1_VIDEO_STATE", score: 10, state: h.state(101, "player", 2) },
+    { tab: { id: 42 }, frameId: 1 },
+  );
+  await h.send(
+    { type: "F1_VIDEO_STATE", score: 100, state: h.state(5, "ad") },
+    { tab: { id: 42 }, frameId: 2 },
+  );
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].message.state?.currentTime, 101);
+  assert.equal(h.sent[0].frame, 0);
+});
+test("unrelated localhost and unpaired terminal readiness cannot retrieve video state", async () => {
+  const h = harness();
+  h.storage.latestVideoState = h.state(10);
+  for (const sender of [
+    { tab: { id: 77 }, frameId: 0, url: "http://localhost:4321/" },
+    { tab: { id: 88 }, frameId: 0, url: "http://localhost:3000/" },
+    { tab: { id: 99 }, frameId: 1, url: "http://localhost:3000/" },
+  ])
+    await h.send({ type: "F1_READY" }, sender);
+  assert.equal(h.sent.length, 0);
+});
+test("stale stored state is never revived by terminal readiness", async () => {
+  const h = harness();
+  h.storage.latestVideoState = h.state(10);
+  h.advance(5000);
+  await h.send(
+    { type: "F1_READY" },
+    { tab: { id: 99 }, frameId: 0, url: "http://localhost:3000/" },
+  );
+  assert.equal(h.sent[0].message.state, null);
+});
