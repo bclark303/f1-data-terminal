@@ -1,12 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatClock } from "@/lib/time";
 import { projectVideo } from "@/lib/replay-state";
 import { useReplayClock } from "./replay-clock";
 import { useReplaySync } from "./replay-sync-context";
 
 const rates = [0.25, 0.5, 1, 2, 4];
+
+type AutoSyncMetadata = {
+  sessionStartSec: number;
+  contentId: string | null;
+};
+
+type AutoSyncLookup = {
+  key: string;
+  status: "idle" | "loading" | "ready" | "unavailable" | "error";
+  metadata: AutoSyncMetadata | null;
+};
 
 function formatVideoTime(seconds: number) {
   const whole = Math.max(0, Math.floor(seconds));
@@ -26,6 +37,111 @@ export function ReplayControls() {
   const [selectedLap, setSelectedLap] = useState(sync.lapAnchors[0]?.lap ?? 1);
   const videoAnchor = clock.videoAnchor;
   const autoActive = clock.following;
+  const attemptedAutoSources = useRef(new Set<string>());
+  const [autoMatched, setAutoMatched] = useState(false);
+  const [autoSync, setAutoSync] = useState<AutoSyncLookup>({
+    key: "",
+    status: "idle",
+    metadata: null,
+  });
+
+  const lapOneAnchor = useMemo(
+    () =>
+      sync.lapAnchors.find((anchor) => anchor.lap === 1) ??
+      sync.lapAnchors[0] ??
+      null,
+    [sync.lapAnchors],
+  );
+
+  useEffect(() => {
+    setAutoMatched(false);
+    if (!video) {
+      setAutoSync({ key: "", status: "idle", metadata: null });
+      return;
+    }
+
+    const key = `${sync.sessionKey}:${video.sourceId}`;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 7000);
+    setAutoSync({ key, status: "loading", metadata: null });
+
+    void fetch(
+      `/api/auto-sync?sessionKey=${encodeURIComponent(String(sync.sessionKey))}`,
+      {
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    )
+      .then(async (response) => {
+        if (response.status === 404)
+          return { status: "unavailable" as const, metadata: null };
+        if (!response.ok)
+          return { status: "error" as const, metadata: null };
+        const payload = (await response.json()) as Partial<AutoSyncMetadata>;
+        if (
+          !Number.isFinite(payload.sessionStartSec) ||
+          Number(payload.sessionStartSec) < 0
+        )
+          return { status: "error" as const, metadata: null };
+        return {
+          status: "ready" as const,
+          metadata: {
+            sessionStartSec: Number(payload.sessionStartSec),
+            contentId:
+              typeof payload.contentId === "string" ? payload.contentId : null,
+          },
+        };
+      })
+      .then((result) => {
+        if (!controller.signal.aborted)
+          setAutoSync({ key, ...result });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setAutoSync({ key, status: "error", metadata: null });
+      })
+      .finally(() => window.clearTimeout(timeout));
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [sync.sessionKey, video?.sourceId]);
+
+  useEffect(() => {
+    if (
+      !video ||
+      !lapOneAnchor ||
+      !autoSync.metadata ||
+      autoSync.status !== "ready" ||
+      videoAnchor
+    )
+      return;
+
+    const key = `${sync.sessionKey}:${video.sourceId}`;
+    if (autoSync.key !== key || attemptedAutoSources.current.has(key)) return;
+    attemptedAutoSources.current.add(key);
+
+    const raceTimeMs = Date.parse(lapOneAnchor.raceTime);
+    if (!Number.isFinite(raceTimeMs)) return;
+    setAutoMatched(true);
+    clock.setSyncOffsetMs(0);
+    clock.matchVideo({
+      lap: lapOneAnchor.lap,
+      raceTimeMs,
+      videoTime: autoSync.metadata.sessionStartSec,
+      sourceId: video.sourceId,
+      sessionKey: sync.sessionKey,
+    });
+  }, [
+    autoSync,
+    clock.matchVideo,
+    clock.setSyncOffsetMs,
+    lapOneAnchor,
+    sync.sessionKey,
+    video,
+    videoAnchor,
+  ]);
 
   const selectedAnchor = useMemo(
     () => sync.lapAnchors.find((anchor) => anchor.lap === selectedLap) ?? null,
@@ -52,6 +168,11 @@ export function ReplayControls() {
 
   const matchNow = () => {
     if (!selectedAnchor) return;
+    if (video)
+      attemptedAutoSources.current.add(
+        `${sync.sessionKey}:${video.sourceId}`,
+      );
+    setAutoMatched(false);
     const raceTimeMs = Date.parse(selectedAnchor.raceTime);
     clock.setSyncOffsetMs(0);
     clock.seek(raceTimeMs - clock.sessionStart);
@@ -70,7 +191,14 @@ export function ReplayControls() {
     }
   };
 
-  const clearVideoAnchor = clock.clearVideo;
+  const clearVideoAnchor = () => {
+    if (video)
+      attemptedAutoSources.current.add(
+        `${sync.sessionKey}:${video.sourceId}`,
+      );
+    setAutoMatched(false);
+    clock.clearVideo();
+  };
 
   return (
     <div className="replayBar">
@@ -147,7 +275,7 @@ export function ReplayControls() {
           className={autoActive ? "active" : ""}
           onClick={toggleSyncPopover}
         >
-          SYNC
+          {autoMatched ? "AUTO" : "SYNC"}
         </button>
 
         {syncOpen && (
@@ -156,11 +284,13 @@ export function ReplayControls() {
               <div>
                 <span>VIDEO SYNC</span>
                 <strong>
-                  {autoActive
-                    ? clock.status.toUpperCase()
-                    : video
-                      ? "COMPANION READY"
-                      : "MANUAL"}
+                  {autoMatched
+                    ? "AUTO SYNC"
+                    : autoActive
+                      ? clock.status.toUpperCase()
+                      : video
+                        ? "COMPANION READY"
+                        : "MANUAL"}
                 </strong>
               </div>
               <button
@@ -183,6 +313,9 @@ export function ReplayControls() {
                       : video.paused
                         ? "PAUSED"
                         : `${video.playbackRate.toFixed(2)}× PLAYING`}
+                    {autoSync.metadata
+                      ? ` · AUTO START ${formatVideoTime(autoSync.metadata.sessionStartSec)}`
+                      : ""}
                   </small>
                 </>
               ) : (
@@ -191,6 +324,25 @@ export function ReplayControls() {
                   <small>Manual lap matching is still available.</small>
                 </>
               )}
+            </div>
+
+            <div className="syncStatusRow">
+              <span>AUTO SYNC</span>
+              <strong>
+                {!video
+                  ? "WAITING FOR VIDEO"
+                  : autoMatched
+                    ? "MATCHED"
+                    : autoSync.status === "loading"
+                      ? "LOOKING UP…"
+                      : autoSync.status === "ready" && autoSync.metadata
+                        ? `READY · START ${formatVideoTime(autoSync.metadata.sessionStartSec)}`
+                        : autoSync.status === "unavailable"
+                          ? "UNAVAILABLE · USE MANUAL"
+                          : autoSync.status === "error"
+                            ? "LOOKUP FAILED · USE MANUAL"
+                            : "WAITING"}
+              </strong>
             </div>
 
             <div className="syncMatchRow">
@@ -219,11 +371,12 @@ export function ReplayControls() {
             </div>
 
             <p className="syncHelp">
-              When the broadcast lap counter changes to the selected lap, press
-              MATCH NOW. With the browser companion connected, this also anchors
-              the video clock and follows future pause, seek and rate changes
-              automatically. Replay controls disengage auto follow. A different
-              video requires a new match.
+              When automatic metadata is available, selecting the F1 TV video
+              is enough: the terminal anchors itself to the published race-start
+              offset and follows pause, seek and playback-rate changes. If AUTO
+              SYNC is unavailable or incorrect for a particular replay, use the
+              lap selector and MATCH NOW as the fallback. Replay controls
+              disengage follow without destroying the existing anchor.
             </p>
 
             <div className="syncStatusRow">
