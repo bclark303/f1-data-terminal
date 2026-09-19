@@ -7,7 +7,11 @@ import {
   isNewerState,
   isTerminalUrl,
 } from "../shared/video-protocol.js";
-import { positiveInteger } from "../lib/sessions";
+import {
+  availableRaceSessions,
+  positiveInteger,
+  selectSession,
+} from "../lib/sessions";
 import { readJsonBounded } from "../lib/openf1";
 const state = (patch = {}) => ({
   version: 1,
@@ -102,6 +106,72 @@ test("proxy identifiers exclude fractions, negative values, whitespace and overs
   assert.equal(positiveInteger("123", "session"), 123);
   for (const input of ["-1", "1.5", " ", "1e2", "999999999999", null])
     assert.throws(() => positiveInteger(input, "session"));
+});
+test("race catalogue exposes completed historical races and selects requested sessions", () => {
+  const makeRace = (
+    session_key: number,
+    year: number,
+    start: string,
+    end: string,
+    country_name: string,
+    session_name = "Race",
+  ) =>
+    ({
+      session_key,
+      year,
+      date_start: start,
+      date_end: end,
+      country_name,
+      session_name,
+    }) as never;
+  const sessions = availableRaceSessions(
+    [
+      makeRace(
+        10,
+        2025,
+        "2025-06-15T18:00:00Z",
+        "2025-06-15T20:00:00Z",
+        "Canada",
+      ),
+      makeRace(
+        11,
+        2026,
+        "2026-09-19T15:00:00Z",
+        "2026-09-19T17:00:00Z",
+        "Italy",
+      ),
+      makeRace(
+        12,
+        2026,
+        "2026-09-19T17:00:00Z",
+        "2026-09-19T17:45:00Z",
+        "Singapore",
+      ),
+      makeRace(
+        13,
+        2022,
+        "2022-07-01T12:00:00Z",
+        "2022-07-01T14:00:00Z",
+        "Britain",
+      ),
+      makeRace(
+        14,
+        2026,
+        "2026-09-01T12:00:00Z",
+        "2026-09-01T14:00:00Z",
+        "Italy",
+        "Practice 1",
+      ),
+    ],
+    Date.parse("2026-09-19T18:00:00Z"),
+  );
+  assert.deepEqual(
+    sessions.map((session) => session.session_key),
+    [11, 10],
+  );
+  assert.equal(selectSession(sessions, "11")?.session_key, 11);
+  assert.equal(selectSession(sessions, "999")?.session_key, 10);
+  assert.equal(selectSession(sessions)?.session_key, 10);
 });
 test("download limit aborts oversized provider data", async () => {
   await assert.rejects(readJsonBounded(new Response("123456789"), 4), /limit/);
