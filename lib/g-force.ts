@@ -38,7 +38,7 @@ function longitudinalAt(telemetry: Timed<CarDataPoint>[], time: number) {
     index >= 0 && telemetry[index].t >= startTime;
     index -= 1
   ) {
-    samples.push(telemetry[index]);
+    if (telemetry[index].point.speed !== null) samples.push(telemetry[index]);
     if (samples.length >= 6) break;
   }
   if (samples.length < 3) return null;
@@ -49,7 +49,7 @@ function longitudinalAt(telemetry: Timed<CarDataPoint>[], time: number) {
   let sumXX = 0;
   for (const sample of samples) {
     const x = (sample.t - time) / 1000;
-    const y = sample.point.speed / 3.6;
+    const y = sample.point.speed! / 3.6;
     sumX += x;
     sumY += y;
     sumXY += x * y;
@@ -68,8 +68,13 @@ function lateralAt(
   locations: Timed<LocationPoint>[],
   time: number,
 ) {
-  const telemetryIndex = indexAt(telemetry, time);
+  let telemetryIndex = indexAt(telemetry, time);
   const locationIndex = indexAt(locations, time);
+  while (
+    telemetryIndex >= 0 &&
+    telemetry[telemetryIndex].point.speed === null
+  )
+    telemetryIndex -= 1;
   if (telemetryIndex < 0 || locationIndex < 2) return null;
 
   const p2 = locations[locationIndex];
@@ -104,7 +109,7 @@ function lateralAt(
   if (headingDt <= 0) return null;
 
   const yawRate = headingChange / headingDt;
-  const speed = telemetry[telemetryIndex].point.speed / 3.6;
+  const speed = telemetry[telemetryIndex].point.speed! / 3.6;
   const g = (speed * yawRate) / STANDARD_GRAVITY;
   return Math.abs(g) <= MAX_DISPLAY_G ? g : null;
 }
