@@ -113,7 +113,9 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
   });
 
   await expect(page.getByText("VIDEO ●")).toBeVisible();
-  await expect(page.getByRole("button", { name: "AUTO", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "AUTO", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
     "70000",
   );
@@ -125,7 +127,10 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
 test("direct sync follows pause, rejects malformed samples, and manual seek disengages", async ({
   page,
 }) => {
-  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>\n    route.fulfill({ status: 404, json: { error: "Unavailable" } }),\n  );\n  await page.goto("/");
+  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
+    route.fulfill({ status: 404, json: { error: "Unavailable" } }),
+  );
+  await page.goto("/");
   await expect(
     page.getByRole("button", { name: "SYNC", exact: true }),
   ).toBeVisible();
