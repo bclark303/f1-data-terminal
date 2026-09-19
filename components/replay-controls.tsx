@@ -158,6 +158,14 @@ export function ReplayControls() {
       ) < 0.001,
   );
 
+  const projectedVideoTime = video ? projectVideo(video) : null;
+  const waitingForRaceStart = Boolean(
+    autoMatched &&
+      currentAutoSync.metadata &&
+      projectedVideoTime !== null &&
+      projectedVideoTime + 1 < currentAutoSync.metadata.sessionStartSec,
+  );
+
   const selectedAnchor = useMemo(
     () => sync.lapAnchors.find((anchor) => anchor.lap === selectedLap) ?? null,
     [sync.lapAnchors, selectedLap],
@@ -298,7 +306,7 @@ export function ReplayControls() {
                 <span>VIDEO SYNC</span>
                 <strong>
                   {autoMatched
-                    ? "AUTO SYNC"
+                    ? `AUTO · ${clock.status.toUpperCase()}`
                     : autoActive
                       ? clock.status.toUpperCase()
                       : video
@@ -344,9 +352,13 @@ export function ReplayControls() {
               <strong>
                 {!video
                   ? "WAITING FOR VIDEO"
-                  : autoMatched
-                    ? "MATCHED"
-                    : currentAutoSync.status === "loading"
+                  : autoMatched && clock.status === "stalled"
+                    ? "VIDEO CLOCK STALLED"
+                    : waitingForRaceStart && currentAutoSync.metadata
+                      ? `WAITING FOR RACE START · ${formatVideoTime(projectedVideoTime ?? 0)} / ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)}`
+                      : autoMatched
+                        ? "MATCHED"
+                        : currentAutoSync.status === "loading"
                       ? "LOOKING UP…"
                       : currentAutoSync.status === "ready" && currentAutoSync.metadata
                         ? `READY · START ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)}`
