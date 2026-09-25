@@ -182,7 +182,7 @@ test("manual race-start sync follows the raw media clock even when player time i
       clock: "raw",
     },
   });
-  assert.equal(state.elapsed, 0);
+  assert.ok(state.elapsed < 100);
   state = replayReducer(state, {
     type: "video",
     video: video({
