@@ -7,6 +7,7 @@ import { useReplayClock } from "./replay-clock";
 import { useReplaySync } from "./replay-sync-context";
 
 const rates = [0.25, 0.5, 1, 2, 4];
+const START_SYNC_WINDOW_SECONDS = 8;
 
 type AutoSyncMetadata = {
   sessionStartSec: number;
@@ -184,6 +185,14 @@ export function ReplayControls() {
     };
   }, [sync.sessionKey, videoSourceId]);
 
+  const startSyncDeltaSec =
+    projectedVideoTime != null && currentAutoSync.metadata
+      ? projectedVideoTime - currentAutoSync.metadata.sessionStartSec
+      : null;
+  const startSyncInWindow =
+    startSyncDeltaSec != null &&
+    Math.abs(startSyncDeltaSec) <= START_SYNC_WINDOW_SECONDS;
+
   useEffect(() => {
     if (
       !videoSourceId ||
@@ -192,7 +201,8 @@ export function ReplayControls() {
       currentAutoSync.status !== "ready" ||
       wallClockInSessionWindow ||
       offsetUnsafe ||
-      videoAnchor
+      videoAnchor ||
+      !startSyncInWindow
     )
       return;
 
@@ -208,7 +218,7 @@ export function ReplayControls() {
       videoTime: currentAutoSync.metadata.sessionStartSec,
       sourceId: videoSourceId,
       sessionKey: sync.sessionKey,
-      kind: "offset",
+      kind: "start",
     });
   }, [
     autoKey,
@@ -216,6 +226,8 @@ export function ReplayControls() {
     currentAutoSync.metadata,
     currentAutoSync.status,
     lapOneAnchor,
+    offsetUnsafe,
+    startSyncInWindow,
     sync.sessionKey,
     videoAnchor,
     videoSourceId,
@@ -235,8 +247,7 @@ export function ReplayControls() {
       lapOneAnchor &&
       currentAutoSync.metadata &&
       !offsetUnsafe &&
-      videoAnchor.kind !== "manual" &&
-      videoAnchor.kind !== "wall-clock" &&
+      (videoAnchor.kind === "start" || videoAnchor.kind === "offset") &&
       videoAnchor.sessionKey === sync.sessionKey &&
       videoAnchor.sourceId === videoSourceId &&
       videoAnchor.lap === lapOneAnchor.lap &&
@@ -410,7 +421,7 @@ export function ReplayControls() {
           className={autoActive ? "active" : ""}
           onClick={toggleSyncPopover}
         >
-          {autoMatched ? "AUTO" : "SYNC"}
+          {autoMatched && autoActive ? "SYNCED" : "SYNC"}
         </button>
 
         {syncOpen && (
@@ -422,7 +433,7 @@ export function ReplayControls() {
                   {wallClockMatched
                     ? `UTC FRAME · ${clock.status.toUpperCase()}`
                     : autoMatched
-                      ? `AUTO · ${clock.status.toUpperCase()}`
+                      ? `SYNCED · ${clock.status.toUpperCase()}`
                     : autoActive
                       ? clock.status.toUpperCase()
                       : video
@@ -489,6 +500,11 @@ export function ReplayControls() {
                       ? "VIDEO TIMELINE TOO SHORT · WRONG/EDITED PLAYER"
                       : video.wallClockMs != null && !wallClockInSessionWindow
                         ? "VIDEO UTC DOES NOT MATCH SELECTED RACE"
+                      : !videoAnchor &&
+                          currentAutoSync.status === "ready" &&
+                          currentAutoSync.metadata &&
+                          startSyncDeltaSec != null
+                        ? `SCRUB F1 TV TO RACE START · TARGET ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)} · ${startSyncDeltaSec >= 0 ? "+" : "−"}${formatVideoTime(Math.abs(startSyncDeltaSec))}`
                     : autoMatched && clock.status === "stalled"
                       ? "VIDEO CLOCK STALLED"
                       : waitingForRaceStart && wallClockMatched && projectedWallClockMs != null
@@ -497,8 +513,10 @@ export function ReplayControls() {
                           ? `WAITING FOR RACE START · ${formatVideoTime(projectedVideoTime ?? 0)} / ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)}`
                           : wallClockMatched
                             ? "MATCHED · DASH UTC"
-                            : autoMatched
-                              ? "MATCHED · OFFSET"
+                            : videoAnchor?.kind === "start"
+                              ? "SYNCED · RACE START"
+                              : autoMatched
+                                ? "MATCHED · OFFSET"
                               : currentAutoSync.status === "loading"
                       ? "LOOKING UP…"
                       : currentAutoSync.status === "ready" && currentAutoSync.metadata
@@ -551,12 +569,11 @@ export function ReplayControls() {
             </div>
 
             <p className="syncHelp">
-              The companion prefers Bitmovin&apos;s own player clock over
-              the underlying HTML5 media timestamp because F1 TV can use a
-              different MediaSource time origin. It then tries UTC-frame sync,
-              falling back to the curated race-start offset only when the F1 TV
-              content and timeline are compatible. While VIDEO LOCK is on, scrub
-              in F1 TV and the data follows automatically.
+              Start the F1 TV replay, then scrub to the start of the race.
+              When the player reaches the curated race-start window, the terminal
+              locks automatically—no lap selection or MATCH NOW required. After
+              that, scrub anywhere in F1 TV and the data follows. UTC-frame sync
+              can still lock immediately when the stream exposes it.
             </p>
 
             <div className="syncStatusRow">
@@ -565,7 +582,9 @@ export function ReplayControls() {
                 {videoAnchor
                   ? videoAnchor.kind === "wall-clock"
                     ? `UTC FRAME @ ${formatVideoTime(videoAnchor.videoTime)}`
-                    : `LAP ${videoAnchor.lap} @ ${formatVideoTime(videoAnchor.videoTime)}`
+                    : videoAnchor.kind === "start"
+                      ? `RACE START @ ${formatVideoTime(videoAnchor.videoTime)}`
+                      : `LAP ${videoAnchor.lap} @ ${formatVideoTime(videoAnchor.videoTime)}`
                   : "NONE"}
               </strong>
             </div>
