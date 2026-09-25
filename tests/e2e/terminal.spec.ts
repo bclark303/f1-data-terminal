@@ -261,7 +261,7 @@ test("paired F1 TV media UTC directly locates the replay and follows scrubbing",
   await expect(page.getByText("MATCHED · DASH UTC", { exact: true })).toBeVisible();
 });
 
-test("visible F1 TV timeline can override a shifted raw media clock", async ({
+test("visible F1 TV current-time label overrides total duration and raw media clock", async ({
   page,
 }) => {
   await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
@@ -273,7 +273,7 @@ test("visible F1 TV timeline can override a shifted raw media clock", async ({
   await page.goto("/");
   await page.evaluate(() => {
     let sequence = 0;
-    const state = { currentTime: 3168.9, rawCurrentTime: 380.9 };
+    const state = { currentTime: 616, rawCurrentTime: 380.9 };
     const timer = window.setInterval(
       () =>
         window.postMessage(
@@ -286,7 +286,9 @@ test("visible F1 TV timeline can override a shifted raw media clock", async ({
               currentTime: state.currentTime,
               rawCurrentTime: state.rawCurrentTime,
               clockSource: "f1tv-ui",
-              duration: null,
+              uiClockText: "00:10:16",
+              uiDuration: 7902,
+              duration: 7902,
               paused: false,
               buffering: false,
               ended: false,
@@ -321,8 +323,15 @@ test("visible F1 TV timeline can override a shifted raw media clock", async ({
   await expect(
     diag.getByText("VISIBLE F1 TV TIMELINE", { exact: true }),
   ).toBeVisible();
-  await expect(diag.getByText("52:48.9", { exact: true })).toBeVisible();
+  await expect(diag.getByText("10:16", { exact: true }).first()).toBeVisible();
+  await expect(
+    diag.getByText("00:10:16", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(diag.getByText("2:11:42", { exact: true }).first()).toBeVisible();
   await expect(diag.getByText("6:20.9", { exact: true })).toBeVisible();
+  await expect(
+    diag.getByText("ARMED — SCRUB TO RACE START").first(),
+  ).toBeVisible();
 
   await page.evaluate(() => {
     const state = (
