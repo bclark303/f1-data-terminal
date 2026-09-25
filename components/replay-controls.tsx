@@ -501,7 +501,7 @@ export function ReplayControls() {
           title="Read the current F1 TV time, translate it to race elapsed time, and lock the data terminal to the video."
           onClick={syncToCurrentVideoTime}
         >
-          {currentTimeMatched && autoActive ? "SYNCED" : "SYNC"}
+          {autoMatched && autoActive ? "SYNCED" : "SYNC"}
         </button>
         <button className="syncDetailsButton" onClick={toggleSyncPopover}>
           DETAILS
