@@ -11,11 +11,14 @@
 }
 
 .syncPopover {
-  position: absolute;
-  right: 0;
-  bottom: 48px;
-  z-index: 40;
-  width: min(430px, calc(100vw - 28px));
+  position: fixed;
+  right: 12px;
+  bottom: 72px;
+  z-index: 1000;
+  width: min(430px, calc(100vw - 24px));
+  max-height: calc(100dvh - 96px);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: 12px;
   border: 1px solid #42505d;
   border-radius: 5px;
@@ -135,12 +138,16 @@
   }
 }
 @media (max-width: 760px) {
-  .syncReadout > button:not(:last-child),
+  .syncReadout > button:not(:last-child):not(.syncStartButton),
   .syncReadout > strong {
     display: none;
   }
   .syncPopover {
-    right: -6px;
+    left: 8px;
+    right: 8px;
+    bottom: 64px;
+    width: auto;
+    max-height: calc(100dvh - 80px);
   }
 }
 
@@ -276,4 +283,40 @@
   .videoDiagSection dd {
     padding-top: 2px;
   }
+}
+
+.syncStartButton {
+  white-space: nowrap;
+  border-color: #2f7351 !important;
+}
+.syncStartButton.active {
+  color: #75e7a3;
+  background: #10261b;
+}
+.manualStartSync {
+  padding: 11px 0;
+  border-bottom: 1px solid var(--line);
+}
+.replayBar .syncStartNowButton {
+  width: 100%;
+  min-height: 36px;
+  color: #0b120e;
+  background: #62d58c;
+  border-color: #7deca6;
+  font-weight: 950;
+  letter-spacing: 0.055em;
+}
+.replayBar .syncStartNowButton:hover {
+  background: #7ce6a3;
+}
+.replayBar .syncStartNowButton:disabled {
+  opacity: .42;
+  cursor: not-allowed;
+}
+.manualStartSync small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
 }
