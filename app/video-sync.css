@@ -152,3 +152,128 @@
 .timelineMeta span:first-child {
   min-width: 150px;
 }
+
+/* Video synchronization diagnostics */
+.layoutResetButton.active {
+  color: var(--green);
+  border-color: #2d7550;
+  background: #102219;
+}
+.videoDiagPanel .panelBody {
+  overflow: auto;
+}
+.videoDiag {
+  padding: 10px;
+  font-size: 10px;
+}
+.videoDiagVerdict {
+  border: 1px solid #34414d;
+  border-left-width: 4px;
+  padding: 10px 12px;
+  background: #0a1015;
+}
+.videoDiagVerdict span {
+  display: block;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: .13em;
+}
+.videoDiagVerdict strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: .04em;
+}
+.videoDiagVerdict p {
+  margin: 7px 0 0;
+  color: #aeb9c4;
+  line-height: 1.45;
+}
+.videoDiagVerdict.ok { border-left-color: #42d47d; }
+.videoDiagVerdict.ok strong { color: #42d47d; }
+.videoDiagVerdict.warn { border-left-color: #e1b94d; }
+.videoDiagVerdict.warn strong { color: #e1b94d; }
+.videoDiagVerdict.error { border-left-color: #ef6761; }
+.videoDiagVerdict.error strong { color: #ef6761; }
+.videoDiagVerdict.info { border-left-color: #5f9de7; }
+.videoDiagVerdict.info strong { color: #7fb1eb; }
+
+.videoDiagActions {
+  display: flex;
+  gap: 7px;
+  margin: 9px 0;
+}
+.videoDiagActions button {
+  min-height: 29px;
+}
+.videoDiagSection {
+  margin-top: 9px;
+  border: 1px solid #25313b;
+  background: #0b1015;
+}
+.videoDiagSection h3 {
+  margin: 0;
+  padding: 7px 9px;
+  border-bottom: 1px solid #25313b;
+  color: #dce4eb;
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+.videoDiagSection dl {
+  display: grid;
+  grid-template-columns: minmax(150px, .9fr) minmax(220px, 1.6fr);
+  margin: 0;
+}
+.videoDiagSection dt,
+.videoDiagSection dd {
+  min-width: 0;
+  margin: 0;
+  padding: 6px 9px;
+  border-bottom: 1px solid #18222b;
+}
+.videoDiagSection dt {
+  color: #7f8d9a;
+}
+.videoDiagSection dd {
+  overflow-wrap: anywhere;
+  color: #dce4eb;
+}
+.videoDiagSection dt:nth-last-of-type(1),
+.videoDiagSection dd:nth-last-of-type(1) {
+  border-bottom: 0;
+}
+.videoDiagRaw {
+  margin-top: 9px;
+  border: 1px solid #25313b;
+}
+.videoDiagRaw summary {
+  cursor: pointer;
+  padding: 8px 9px;
+  color: #9eabb7;
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+.videoDiagRaw pre {
+  max-height: 320px;
+  margin: 0;
+  overflow: auto;
+  border-top: 1px solid #25313b;
+  padding: 9px;
+  color: #aeb9c4;
+  background: #070b0f;
+  font: 9px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .videoDiagSection dl {
+    grid-template-columns: 1fr;
+  }
+  .videoDiagSection dt {
+    padding-bottom: 2px;
+    border-bottom: 0;
+  }
+  .videoDiagSection dd {
+    padding-top: 2px;
+  }
+}
