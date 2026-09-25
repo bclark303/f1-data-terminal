@@ -460,9 +460,11 @@ export function ReplayControls() {
                       ? ` / ${formatVideoTime(video.duration)}`
                       : ""}{" "}
                     ·{" "}
-                    {video.clockSource === "bitmovin-ui"
-                      ? "BITMOVIN PLAYER"
-                      : "HTML5 MEDIA"}
+                    {video.clockSource === "f1tv-ui"
+                      ? "F1 TV UI"
+                      : video.clockSource === "bitmovin-ui"
+                        ? "BITMOVIN PLAYER"
+                        : "HTML5 MEDIA"}
                     {video.rawCurrentTime != null &&
                     Math.abs(video.rawCurrentTime - video.currentTime) > 1
                       ? ` · MEDIA ${formatVideoTime(video.rawCurrentTime)}`
@@ -569,11 +571,11 @@ export function ReplayControls() {
             </div>
 
             <p className="syncHelp">
-              Start the F1 TV replay, then scrub to the start of the race.
-              When the player reaches the curated race-start window, the terminal
-              locks automatically—no lap selection or MATCH NOW required. After
-              that, scrub anywhere in F1 TV and the data follows. UTC-frame sync
-              can still lock immediately when the stream exposes it.
+              Start the F1 TV replay and expose its controls once. The companion
+              learns the visible F1 TV timeline from the on-screen time display,
+              even when the underlying HTML media clock uses a different origin.
+              Then scrub to the race start; the terminal locks automatically and
+              follows subsequent F1 TV seeks.
             </p>
 
             <div className="syncStatusRow">
