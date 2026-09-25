@@ -257,7 +257,7 @@ test("paired F1 TV media UTC directly locates the replay and follows scrubbing",
     "180000",
   );
 
-  await page.getByRole("button", { name: "AUTO", exact: true }).click();
+  await page.getByRole("button", { name: "SYNCED", exact: true }).click();
   await expect(page.getByText("MATCHED · DASH UTC", { exact: true })).toBeVisible();
 });
 
@@ -319,13 +319,15 @@ test("Bitmovin player clock wins over a shifted raw media timestamp", async ({
   await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
     "1000",
   );
-  await page.getByRole("button", { name: "AUTO", exact: true }).click();
+  await page.getByRole("button", { name: "SYNCED", exact: true }).click();
   await expect(page.getByText(/BITMOVIN PLAYER/)).toBeVisible();
   await expect(page.getByText(/MEDIA 2:59/)).toBeVisible();
-  await expect(page.getByText("MATCHED · OFFSET", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("SYNCED · RACE START", { exact: true }),
+  ).toBeVisible();
 });
 
-test("paired video auto-syncs from metadata without manual lap matching", async ({
+test("scrubbing F1 TV to race start automatically locks replay sync", async ({
   page,
 }) => {
   await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
@@ -377,14 +379,40 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
 
   await expect(page.getByText("VIDEO ●")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "AUTO", exact: true }),
+    page.getByRole("slider", { name: "Replay position" }),
+  ).not.toBeDisabled();
+  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await expect(
+    page.getByText(
+      "SCRUB F1 TV TO RACE START · TARGET 0:30 · +1:10",
+      { exact: true },
+    ),
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    (
+      window as unknown as {
+        autoVideoState: { currentTime: number };
+      }
+    ).autoVideoState.currentTime = 31;
+  });
+
+  await expect(
+    page.getByRole("button", { name: "SYNCED", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
-    "70000",
+    "1000",
   );
   await expect(
     page.getByRole("slider", { name: "Replay position" }),
   ).toBeDisabled();
+  await expect(
+    page.getByText("SYNCED · RACE START", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("RACE START @ 0:30", { exact: true }),
+  ).toBeVisible();
+
   await page.evaluate(() => {
     (
       window as unknown as {
@@ -395,11 +423,6 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
   await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
     "130000",
   );
-  await page.getByRole("button", { name: "AUTO", exact: true }).click();
-  await expect(
-    page.getByText("MATCHED · OFFSET", { exact: true }),
-  ).toBeVisible();
-  await expect(page.getByText("LAP 1 @ 0:30", { exact: true })).toBeVisible();
 });
 
 test("offset auto-sync refuses a mismatched F1 TV content asset", async ({
