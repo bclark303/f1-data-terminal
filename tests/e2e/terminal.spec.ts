@@ -303,6 +303,10 @@ test("direct sync follows pause, rejects malformed samples, and manual seek dise
   await expect(
     page.getByRole("button", { name: "ON", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "ON", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "OFF", exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Close synchronization" }).click();
   await page.getByRole("slider").press("Home");
   await page.getByRole("button", { name: "SYNC", exact: true }).click();
