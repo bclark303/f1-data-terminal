@@ -1,10 +1,18 @@
 {
   "manifest_version": 3,
   "name": "F1 Data Terminal Video Sync",
-  "version": "0.3.1",
-  "description": "Sends HTML5 video playback state to a local F1 Data Terminal for replay synchronization.",
-  "permissions": ["activeTab", "tabs", "storage"],
-  "host_permissions": ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
+  "version": "0.4.0",
+  "description": "Integrates F1 TV video with the local F1 Data Terminal and live timing.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*"
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
@@ -14,8 +22,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["page-probe.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "page-probe.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true,
@@ -23,13 +36,24 @@
       "world": "MAIN"
     },
     {
-      "matches": ["http://*/*", "https://*/*"],
-      "js": ["content.js"],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true,
       "match_origin_as_fallback": true,
       "world": "ISOLATED"
     }
-  ]
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src http://127.0.0.1:3000 http://localhost:3000;"
+  }
 }
