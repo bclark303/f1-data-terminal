@@ -170,6 +170,18 @@ test("video protocol preserves a valid media wall clock and rejects garbage", ()
     )?.rawCurrentTime,
     178.25,
   );
+  assert.equal(
+    parseVideoState(
+      {
+        ...base,
+        currentTime: 3168.9,
+        rawCurrentTime: 380.9,
+        clockSource: "f1tv-ui",
+      },
+      now,
+    )?.clockSource,
+    "f1tv-ui",
+  );
 });
 
 test("elected frame excludes competing video clocks and delivers only to paired main frame", async () => {
