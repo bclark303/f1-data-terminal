@@ -68,6 +68,26 @@
       visibleArea(video) * 1000
     );
   }
+  function wallClockMs(video) {
+    try {
+      if (typeof video.getStartDate !== "function") return null;
+      const start = video.getStartDate();
+      const startMs = start instanceof Date ? start.getTime() : Number.NaN;
+      if (
+        !Number.isFinite(startMs) ||
+        startMs < 946684800000 ||
+        startMs > 4102444800000 ||
+        !Number.isFinite(video.currentTime)
+      )
+        return null;
+      const frameMs = startMs + video.currentTime * 1000;
+      return frameMs >= 946684800000 && frameMs <= 4102444800000
+        ? frameMs
+        : null;
+    } catch {
+      return null;
+    }
+  }
   function emit() {
     if (!enabled) return;
     const now = Date.now();
@@ -140,6 +160,7 @@
           playbackRate: chosen.playbackRate,
           title: document.title.slice(0, 240),
           capturedAt: now,
+          wallClockMs: wallClockMs(chosen),
         },
       },
       "*",
