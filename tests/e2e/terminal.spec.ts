@@ -185,6 +185,82 @@ test("driver error can be retried without changing selection", async ({
   await page.getByRole("button", { name: "Retry driver data" }).click();
   await expect(page.getByText("REPLAY DATA", { exact: true })).toBeVisible();
 });
+test("paired F1 TV media UTC directly locates the replay and follows scrubbing", async ({
+  page,
+}) => {
+  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
+    route.fulfill({ status: 404, json: { error: "Offset unavailable" } }),
+  );
+  await page.goto("/");
+  await page.evaluate(() => {
+    let sequence = 0;
+    const state = {
+      currentTime: 100,
+      wallClockMs: Date.parse("2025-06-15T18:02:00.000Z"),
+    };
+    const timer = window.setInterval(
+      () =>
+        window.postMessage(
+          {
+            source: "F1_DATA_TERMINAL_EXTENSION",
+            state: {
+              version: 1,
+              sourceId: "utc-player",
+              sequence: sequence++,
+              currentTime: state.currentTime,
+              duration: 5000,
+              paused: true,
+              buffering: false,
+              ended: false,
+              playbackRate: 1,
+              title: "F1 TV replay with DASH UTC",
+              capturedAt: Date.now(),
+              wallClockMs: state.wallClockMs,
+            },
+          },
+          location.origin,
+        ),
+      200,
+    );
+    (
+      window as unknown as {
+        utcTimer: number;
+        utcVideoState: { currentTime: number; wallClockMs: number };
+      }
+    ).utcTimer = timer;
+    (
+      window as unknown as {
+        utcTimer: number;
+        utcVideoState: { currentTime: number; wallClockMs: number };
+      }
+    ).utcVideoState = state;
+  });
+
+  await expect(page.getByText(/VIDEO ●/)).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
+    "120000",
+  );
+  await expect(
+    page.getByRole("slider", { name: "Replay position" }),
+  ).toBeDisabled();
+
+  await page.evaluate(() => {
+    const state = (
+      window as unknown as {
+        utcVideoState: { currentTime: number; wallClockMs: number };
+      }
+    ).utcVideoState;
+    state.currentTime = 160;
+    state.wallClockMs = Date.parse("2025-06-15T18:03:00.000Z");
+  });
+  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
+    "180000",
+  );
+
+  await page.getByRole("button", { name: "AUTO", exact: true }).click();
+  await expect(page.getByText("MATCHED · DASH UTC", { exact: true })).toBeVisible();
+});
+
 test("paired video auto-syncs from metadata without manual lap matching", async ({
   page,
 }) => {
