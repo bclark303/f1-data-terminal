@@ -40,6 +40,7 @@ const video = (patch: Partial<VideoState> = {}): VideoState => ({
   title: "Race",
   capturedAt: Date.now(),
   wallClockMs: null,
+  contentId: null,
   ...patch,
 });
 function followed() {

@@ -76,6 +76,20 @@ export function ReplayControls() {
     projectedWallClockMs >= clock.sessionStart - 6 * 60 * 60 * 1000 &&
     projectedWallClockMs <= clock.sessionEnd + 6 * 60 * 60 * 1000;
 
+  const contentMismatch = Boolean(
+    video?.contentId &&
+      currentAutoSync.metadata?.contentId &&
+      video.contentId !== currentAutoSync.metadata.contentId,
+  );
+  const likelyEditedOrWrongTimeline = Boolean(
+    video?.duration != null &&
+      video.duration > 0 &&
+      video.duration * 1000 < clock.duration * 0.6,
+  );
+  const offsetUnsafe =
+    !wallClockInSessionWindow &&
+    (contentMismatch || likelyEditedOrWrongTimeline);
+
   useEffect(() => {
     if (
       !video ||
@@ -108,7 +122,18 @@ export function ReplayControls() {
     videoAnchor,
     videoSourceId,
     wallClockInSessionWindow,
+    offsetUnsafe,
   ]);
+
+  useEffect(() => {
+    if (
+      !offsetUnsafe ||
+      videoAnchor?.kind !== "offset" ||
+      videoAnchor.sourceId !== videoSourceId
+    )
+      return;
+    clock.clearVideo();
+  }, [clock, offsetUnsafe, videoAnchor, videoSourceId]);
 
   useEffect(() => {
     if (!videoSourceId) return;
@@ -166,6 +191,7 @@ export function ReplayControls() {
       !currentAutoSync.metadata ||
       currentAutoSync.status !== "ready" ||
       wallClockInSessionWindow ||
+      offsetUnsafe ||
       videoAnchor
     )
       return;
@@ -208,6 +234,7 @@ export function ReplayControls() {
       videoSourceId &&
       lapOneAnchor &&
       currentAutoSync.metadata &&
+      !offsetUnsafe &&
       videoAnchor.kind !== "manual" &&
       videoAnchor.kind !== "wall-clock" &&
       videoAnchor.sessionKey === sync.sessionKey &&
@@ -417,12 +444,17 @@ export function ReplayControls() {
                 <>
                   <strong>{video.title || "HTML5 video"}</strong>
                   <small>
-                    {formatVideoTime(projectVideo(video))} ·{" "}
+                    {formatVideoTime(projectVideo(video))}
+                    {video.duration != null
+                      ? ` / ${formatVideoTime(video.duration)}`
+                      : ""}{" "}
+                    ·{" "}
                     {video.buffering
                       ? "BUFFERING"
                       : video.paused
                         ? "PAUSED"
                         : `${video.playbackRate.toFixed(2)}× PLAYING`}
+                    {video.contentId ? ` · CONTENT ${video.contentId}` : ""}
                     {projectedWallClockMs != null
                       ? ` · FRAME ${formatUtc(projectedWallClockMs)}`
                       : currentAutoSync.metadata
@@ -443,8 +475,12 @@ export function ReplayControls() {
               <strong>
                 {!video
                   ? "WAITING FOR VIDEO"
-                  : video.wallClockMs != null && !wallClockInSessionWindow
-                    ? "VIDEO UTC DOES NOT MATCH SELECTED RACE"
+                  : contentMismatch && !wallClockInSessionWindow
+                    ? "F1 TV CONTENT DOES NOT MATCH FULL RACE REPLAY"
+                    : likelyEditedOrWrongTimeline && !wallClockInSessionWindow
+                      ? "VIDEO TIMELINE TOO SHORT · WRONG/EDITED PLAYER"
+                      : video.wallClockMs != null && !wallClockInSessionWindow
+                        ? "VIDEO UTC DOES NOT MATCH SELECTED RACE"
                     : autoMatched && clock.status === "stalled"
                       ? "VIDEO CLOCK STALLED"
                       : waitingForRaceStart && wallClockMatched && projectedWallClockMs != null
@@ -466,6 +502,20 @@ export function ReplayControls() {
                             : "WAITING"}
               </strong>
             </div>
+
+            {currentAutoSync.metadata?.contentId && (
+              <div className="syncStatusRow">
+                <span>EXPECTED F1 TV CONTENT</span>
+                <strong>
+                  {currentAutoSync.metadata.contentId}
+                  {video?.contentId
+                    ? video.contentId === currentAutoSync.metadata.contentId
+                      ? " · MATCH"
+                      : ` · BROWSER HAS ${video.contentId}`
+                    : ""}
+                </strong>
+              </div>
+            )}
 
             <div className="syncMatchRow">
               <label>
@@ -496,9 +546,10 @@ export function ReplayControls() {
               The terminal first tries the F1 TV media UTC clock,
               which maps the frame on screen directly onto OpenF1 timestamps.
               If the player does not expose a usable UTC clock, it falls back to
-              the curated race-start offset. While VIDEO LOCK is on, scrub and
-              control playback in F1 TV; the data follows automatically. Use
-              MATCH NOW only as a fallback.
+              the curated race-start offset only when the selected F1 TV content
+              and timeline look compatible with the full replay. While VIDEO LOCK
+              is on, scrub and control playback in F1 TV; the data follows
+              automatically. Use MATCH NOW only as a fallback.
             </p>
 
             <div className="syncStatusRow">

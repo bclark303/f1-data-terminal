@@ -62,10 +62,24 @@
   function score(video, now) {
     const state = updateActivity(video, now);
     const advancing = now - state.lastAdvance <= 800;
+    const duration =
+      Number.isFinite(video.duration) && video.duration > 0
+        ? Math.min(video.duration, 4 * 60 * 60)
+        : 0;
+    const intrinsicArea =
+      Number.isFinite(video.videoWidth) && Number.isFinite(video.videoHeight)
+        ? Math.max(0, video.videoWidth * video.videoHeight)
+        : 0;
+    const bitmovin =
+      typeof video.closest === "function" &&
+      video.closest(".bitmovinplayer-container, [class*='bitmovin']") !== null;
     return (
       (advancing && !video.paused && !video.ended ? 2e9 : 0) +
       (!video.paused && !video.ended ? 1e9 : 0) +
-      visibleArea(video) * 1000
+      (bitmovin ? 1e9 : 0) +
+      visibleArea(video) * 1000 +
+      intrinsicArea * 250 +
+      duration * 120000
     );
   }
   function wallClockMs(video) {

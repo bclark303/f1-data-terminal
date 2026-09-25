@@ -18,6 +18,16 @@ function isFormula1VideoTab(value) {
   }
 }
 
+function f1TvContentId(value) {
+  try {
+    const url = new URL(value);
+    const match = url.pathname.match(/\/detail\/(\d{6,20})(?:\/|$)/);
+    return match?.[1] ?? url.searchParams.get("contentId");
+  } catch {
+    return null;
+  }
+}
+
 async function openIntegratedLivePanel(tab) {
   if (!tab?.id || !isFormula1VideoTab(tab.url)) return;
   try {
@@ -201,37 +211,68 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     if (!state) return;
     const key = `${sender.frameId}:${state.sourceId}`;
     const now = Date.now();
-    // Hold the elected frame/player while it reports fresh samples, even if an ad starts.
-    if (elected && elected.key !== key && now - elected.at <= STALE_MS) return;
-    if (!elected || now - elected.at > STALE_MS) {
-      const fresh = Object.fromEntries(
-        Object.entries(candidates).filter(([, c]) => now - c.at < 1000),
-      );
-      fresh[key] = {
-        at: now,
-        first: candidates[key]?.first ?? now,
-        score: Number.isFinite(message.score)
-          ? Math.max(0, Math.min(1e12, message.score))
-          : 0,
-      };
-      await chrome.storage.session.set({ candidates: fresh });
-      const oldest = Math.min(...Object.values(fresh).map((c) => c.first));
-      if (now - oldest < 350) return;
-      const winner = Object.entries(fresh).sort(
-        (a, b) => b[1].score - a[1].score,
-      )[0]?.[0];
-      if (key !== winner) return;
+    const score = Number.isFinite(message.score)
+      ? Math.max(0, Math.min(1e12, message.score))
+      : 0;
+    const fresh = Object.fromEntries(
+      Object.entries(candidates).filter(([, candidate]) => now - candidate.at < 1500),
+    );
+    fresh[key] = {
+      at: now,
+      first: candidates[key]?.first ?? now,
+      score,
+    };
+
+    const electedCandidate = elected?.key ? fresh[elected.key] : null;
+    const currentFresh =
+      electedCandidate && now - electedCandidate.at <= STALE_MS;
+    const winnerEntry = Object.entries(fresh).sort(
+      (a, b) => b[1].score - a[1].score,
+    )[0];
+    const winnerKey = winnerEntry?.[0] ?? key;
+    const winner = winnerEntry?.[1] ?? fresh[key];
+    let electedKey = elected?.key ?? null;
+
+    if (!currentFresh) {
+      const oldest = Math.min(...Object.values(fresh).map((candidate) => candidate.first));
+      if (now - oldest < 350) {
+        await chrome.storage.session.set({ candidates: fresh });
+        return;
+      }
+      electedKey = winnerKey;
+    } else if (
+      winnerKey !== electedKey &&
+      now - winner.first >= 600 &&
+      winner.score > electedCandidate.score + 3e8
+    ) {
+      // Cross-frame handoff: a long-form / visibly stronger player can replace
+      // a stale placeholder or secondary F1 TV video even while both advance.
+      electedKey = winnerKey;
     }
+
+    await chrome.storage.session.set({ candidates: fresh });
+    if (key !== electedKey) return;
+
+    const sourceTab = await chrome.tabs.get(sourceTabId);
     const identified = {
       ...state,
+      contentId: f1TvContentId(sourceTab.url),
       sourceId: `${sourceTabId}:${sender.frameId}:${state.sourceId}`,
     };
-    if (!isNewerState(latestVideoState ?? null, identified)) return;
+    if (
+      latestVideoState?.sourceId === identified.sourceId &&
+      !isNewerState(latestVideoState ?? null, identified)
+    )
+      return;
     await chrome.storage.session.set({
-      elected: { key, at: now },
+      elected: { key, at: now, score },
       latestVideoState: identified,
     });
-    await badge(sourceTabId, "OK", "Video selected and syncing");
+    await badge(
+      sourceTabId,
+      "OK",
+      `Video selected and syncing${identified.contentId ? ` · content ${identified.contentId}` : ""}`,
+    );
     await deliver(identified);
   });
 });

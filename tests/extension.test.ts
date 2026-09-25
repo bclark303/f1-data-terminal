@@ -16,7 +16,9 @@ function harness() {
   };
   const sent: Array<{
     tab: number;
-    message: { state?: { currentTime: number } | null };
+    message: {
+      state?: { currentTime: number; contentId?: string | null } | null;
+    };
     frame: number;
   }> = [];
   let now = 10000;
@@ -43,7 +45,12 @@ function harness() {
     tabs: {
       get: async (id: number) => ({
         id,
-        url: id === 99 ? "http://localhost:3000/" : "http://localhost:4321/",
+        url:
+          id === 99
+            ? "http://localhost:3000/"
+            : id === 42
+              ? "https://f1tv.formula1.com/detail/1000001234/0?action=play"
+              : "http://localhost:4321/",
       }),
       sendMessage: async (
         tab: number,
@@ -74,6 +81,7 @@ function harness() {
     chrome,
     Date: Clock,
     console,
+    URL,
     isTerminalUrl,
     parseVideoState: (v: unknown) => parseVideoState(v, now),
     isNewerState,
@@ -130,6 +138,14 @@ test("video protocol preserves a valid media wall clock and rejects garbage", ()
     parseVideoState({ ...base, wallClockMs: 1234 }, now)?.wallClockMs,
     null,
   );
+  assert.equal(
+    parseVideoState({ ...base, contentId: "1000001234" }, now)?.contentId,
+    "1000001234",
+  );
+  assert.equal(
+    parseVideoState({ ...base, contentId: "not-an-id" }, now)?.contentId,
+    null,
+  );
 });
 
 test("elected frame excludes competing video clocks and delivers only to paired main frame", async () => {
@@ -151,6 +167,41 @@ test("elected frame excludes competing video clocks and delivers only to paired 
   assert.equal(h.sent[0].message.state?.currentTime, 101);
   assert.equal(h.sent[0].frame, 0);
 });
+test("a substantially stronger cross-frame player replaces the initially elected video", async () => {
+  const h = harness();
+  await h.send(
+    { type: "F1_VIDEO_STATE", score: 1_000_000_000, state: h.state(100) },
+    { tab: { id: 42 }, frameId: 1 },
+  );
+  h.advance(400);
+  await h.send(
+    {
+      type: "F1_VIDEO_STATE",
+      score: 1_000_000_000,
+      state: h.state(101, "player", 2),
+    },
+    { tab: { id: 42 }, frameId: 1 },
+  );
+  assert.equal(h.sent.at(-1)?.message.state?.currentTime, 101);
+
+  await h.send(
+    { type: "F1_VIDEO_STATE", score: 5_000_000_000, state: h.state(700, "main") },
+    { tab: { id: 42 }, frameId: 2 },
+  );
+  h.advance(700);
+  await h.send(
+    {
+      type: "F1_VIDEO_STATE",
+      score: 5_000_000_000,
+      state: h.state(701, "main", 2),
+    },
+    { tab: { id: 42 }, frameId: 2 },
+  );
+
+  assert.equal(h.sent.at(-1)?.message.state?.currentTime, 701);
+  assert.equal(h.sent.at(-1)?.message.state?.contentId, "1000001234");
+});
+
 test("trusted top-level terminals auto-link while unrelated origins and subframes cannot retrieve state", async () => {
   const h = harness();
   h.storage.latestVideoState = h.state(10);

@@ -338,6 +338,62 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
   await expect(page.getByText("LAP 1 @ 0:30", { exact: true })).toBeVisible();
 });
 
+test("offset auto-sync refuses a mismatched F1 TV content asset", async ({
+  page,
+}) => {
+  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { sessionStartSec: 30, contentId: "1000001234" },
+    }),
+  );
+  await page.goto("/");
+  await page.evaluate(() => {
+    let sequence = 0;
+    const timer = window.setInterval(
+      () =>
+        window.postMessage(
+          {
+            source: "F1_DATA_TERMINAL_EXTENSION",
+            state: {
+              version: 1,
+              sourceId: "wrong-content",
+              sequence: sequence++,
+              currentTime: 190,
+              duration: 1800,
+              paused: false,
+              buffering: false,
+              ended: false,
+              playbackRate: 1,
+              title: "F1 TV edited replay",
+              capturedAt: Date.now(),
+              wallClockMs: null,
+              contentId: "1000005678",
+            },
+          },
+          location.origin,
+        ),
+      200,
+    );
+    (window as unknown as { wrongContentTimer: number }).wrongContentTimer =
+      timer;
+  });
+
+  await expect(page.getByText(/VIDEO ●/)).toBeVisible();
+  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await expect(
+    page.getByText("F1 TV CONTENT DOES NOT MATCH FULL RACE REPLAY", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("1000001234 · BROWSER HAS 1000005678", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("slider", { name: "Replay position" }),
+  ).not.toBeDisabled();
+});
+
 test("direct sync follows pause, rejects malformed samples, and manual seek disengages", async ({
   page,
 }) => {
