@@ -788,7 +788,7 @@ test("direct sync follows pause, rejects malformed samples, and manual seek dise
     (window as unknown as { testTimer: number }).testTimer = timer;
   });
   await expect(page.getByText("VIDEO ●")).toBeVisible();
-  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await page.getByRole("button", { name: "MATCH NOW" }).click();
   await expect(
     page.getByRole("button", { name: "ON", exact: true }),
