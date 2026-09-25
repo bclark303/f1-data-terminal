@@ -138,6 +138,14 @@ test("video protocol preserves a valid media wall clock and rejects garbage", ()
     parseVideoState({ ...base, wallClockMs: 1234 }, now)?.wallClockMs,
     null,
   );
+  assert.equal(
+    parseVideoState({ ...base, contentId: "1000001234" }, now)?.contentId,
+    "1000001234",
+  );
+  assert.equal(
+    parseVideoState({ ...base, contentId: "not-an-id" }, now)?.contentId,
+    null,
+  );
 });
 
 test("elected frame excludes competing video clocks and delivers only to paired main frame", async () => {
