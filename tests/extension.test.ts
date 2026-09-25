@@ -104,6 +104,34 @@ function harness() {
     }),
   };
 }
+test("video protocol preserves a valid media wall clock and rejects garbage", () => {
+  const now = Date.now();
+  const base = {
+    version: 1,
+    sourceId: "player",
+    sequence: 1,
+    currentTime: 100,
+    duration: 5000,
+    playbackRate: 1,
+    paused: false,
+    buffering: false,
+    ended: false,
+    title: "Race",
+    capturedAt: now,
+  };
+  assert.equal(
+    parseVideoState(
+      { ...base, wallClockMs: Date.parse("2026-09-20T13:05:00Z") },
+      now,
+    )?.wallClockMs,
+    Date.parse("2026-09-20T13:05:00Z"),
+  );
+  assert.equal(
+    parseVideoState({ ...base, wallClockMs: 1234 }, now)?.wallClockMs,
+    null,
+  );
+});
+
 test("elected frame excludes competing video clocks and delivers only to paired main frame", async () => {
   const h = harness();
   await h.send(
