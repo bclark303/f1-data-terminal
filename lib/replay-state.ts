@@ -7,7 +7,13 @@ export type VideoAnchor = {
   videoTime: number;
   sourceId: string;
   sessionKey: number;
-  kind?: "wall-clock" | "start" | "offset" | "manual" | "manual-start";
+  kind?:
+    | "wall-clock"
+    | "start"
+    | "offset"
+    | "manual"
+    | "manual-start"
+    | "current-time";
   clock?: VideoClockBasis;
 };
 export type ReplayState = {

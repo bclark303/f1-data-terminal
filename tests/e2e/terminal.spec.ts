@@ -18,7 +18,7 @@ test("race loads, prevents future lap results, seeks and preserves accessible co
   await expect(
     page.getByRole("heading", { name: "Lando Norris" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await page.getByRole("button", { name: "MATCH NOW" }).click();
   await expect(
     page.getByRole("button", { name: "Pause replay" }),
@@ -257,7 +257,7 @@ test("paired F1 TV media UTC directly locates the replay and follows scrubbing",
     "180000",
   );
 
-  await page.getByRole("button", { name: "SYNCED", exact: true }).click();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await expect(page.getByText("MATCHED · DASH UTC", { exact: true })).toBeVisible();
 });
 
@@ -409,7 +409,7 @@ test("Bitmovin player clock wins over a shifted raw media timestamp", async ({
   await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
     "1000",
   );
-  await page.getByRole("button", { name: "SYNCED", exact: true }).click();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await expect(page.getByText(/BITMOVIN PLAYER/)).toBeVisible();
   await expect(page.getByText(/MEDIA 2:59/)).toBeVisible();
   await expect(
@@ -502,13 +502,13 @@ test("video diagnostic window exposes sync clocks and anchor state", async ({
   await expect(diag.getByText("ON", { exact: true }).first()).toBeVisible();
 });
 
-test("SYNC START uses the raw media clock and follows later F1 TV seeks", async ({
+test("SYNC reads current F1 TV time, jumps data, and follows later seeks", async ({
   page,
 }) => {
   await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
     route.fulfill({
       status: 200,
-      json: { sessionStartSec: 30, contentId: "fixture-content" },
+      json: { sessionStartSec: 551.3, contentId: "fixture-content" },
     }),
   );
   await page.goto("/");
@@ -522,7 +522,7 @@ test("SYNC START uses the raw media clock and follows later F1 TV seeks", async 
             source: "F1_DATA_TERMINAL_EXTENSION",
             state: {
               version: 1,
-              sourceId: "manual-raw-player",
+              sourceId: "sync-current-player",
               sequence: sequence++,
               currentTime: state.currentTime,
               rawCurrentTime: state.rawCurrentTime,
@@ -546,49 +546,52 @@ test("SYNC START uses the raw media clock and follows later F1 TV seeks", async 
     );
     (
       window as unknown as {
-        manualRawTimer: number;
-        manualRawState: { currentTime: number; rawCurrentTime: number };
+        syncCurrentTimer: number;
+        syncCurrentState: { currentTime: number; rawCurrentTime: number };
       }
-    ).manualRawTimer = timer;
+    ).syncCurrentTimer = timer;
     (
       window as unknown as {
-        manualRawTimer: number;
-        manualRawState: { currentTime: number; rawCurrentTime: number };
+        syncCurrentTimer: number;
+        syncCurrentState: { currentTime: number; rawCurrentTime: number };
       }
-    ).manualRawState = state;
+    ).syncCurrentState = state;
   });
 
   await expect(page.getByText(/VIDEO ●/)).toBeVisible();
-  await page.getByRole("button", { name: "SYNC START" }).click();
+  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+
+  // 10:16 video - 9:11.3 race-start offset = 1:04.7 into the race.
   await expect(
-    page.getByRole("button", { name: "START ✓" }),
-  ).toBeVisible();
-  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
-    "0",
-  );
+    page.getByRole("slider", { name: "Replay position" }),
+  ).toHaveValue("64700");
   await expect(
     page.getByRole("slider", { name: "Replay position" }),
   ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "SYNCED", exact: true }),
+  ).toBeVisible();
 
   await page.evaluate(() => {
     const state = (
       window as unknown as {
-        manualRawState: { currentTime: number; rawCurrentTime: number };
+        syncCurrentState: { currentTime: number; rawCurrentTime: number };
       }
-    ).manualRawState;
+    ).syncCurrentState;
+    // UI/player clock can jump somewhere unrelated; raw media advances 60s.
     state.currentTime = 2500;
     state.rawCurrentTime = 440;
   });
 
-  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
-    "60000",
-  );
-
-  await page.getByRole("button", { name: "SYNCED", exact: true }).click();
   await expect(
-    page.getByText(/SYNCED · MANUAL RACE START · RAW MEDIA/),
+    page.getByRole("slider", { name: "Replay position" }),
+  ).toHaveValue("124700");
+
+  await page.getByRole("button", { name: "DETAILS" }).click();
+  await expect(
+    page.getByText(/SYNCED · CURRENT VIDEO TIME · RAW FOLLOW/),
   ).toBeVisible();
-  await expect(page.getByText(/RACE START HERE @/)).toBeVisible();
+  await expect(page.getByText(/CURRENT VIDEO →/)).toBeVisible();
 });
 
 test("scrubbing F1 TV to race start automatically locks replay sync", async ({
@@ -645,7 +648,7 @@ test("scrubbing F1 TV to race start automatically locks replay sync", async ({
   await expect(
     page.getByRole("slider", { name: "Replay position" }),
   ).not.toBeDisabled();
-  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await expect(
     page.getByText(
       "SCRUB F1 TV TO RACE START · TARGET 0:30 · +1:10",
@@ -731,7 +734,8 @@ test("offset auto-sync refuses a mismatched F1 TV content asset", async ({
   });
 
   await expect(page.getByText(/VIDEO ●/)).toBeVisible();
-  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await expect(page.getByRole("button", { name: "SYNC", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await expect(
     page.getByText("F1 TV CONTENT DOES NOT MATCH FULL RACE REPLAY", {
       exact: true,
@@ -754,7 +758,8 @@ test("direct sync follows pause, rejects malformed samples, and manual seek dise
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: "SYNC", exact: true }),
-  ).toBeVisible();
+  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "DETAILS" })).toBeVisible();
   await page.evaluate(() => {
     let sequence = 0;
     const timer = window.setInterval(
@@ -783,7 +788,7 @@ test("direct sync follows pause, rejects malformed samples, and manual seek dise
     (window as unknown as { testTimer: number }).testTimer = timer;
   });
   await expect(page.getByText("VIDEO ●")).toBeVisible();
-  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await page.getByRole("button", { name: "MATCH NOW" }).click();
   await expect(
     page.getByRole("button", { name: "ON", exact: true }),
@@ -794,7 +799,7 @@ test("direct sync follows pause, rejects malformed samples, and manual seek dise
   ).toBeVisible();
   await page.getByRole("button", { name: "Close synchronization" }).click();
   await page.getByRole("slider").press("Home");
-  await page.getByRole("button", { name: "SYNC", exact: true }).click();
+  await page.getByRole("button", { name: "DETAILS" }).click();
   await expect(
     page.getByRole("button", { name: "OFF", exact: true }),
   ).toBeVisible();
