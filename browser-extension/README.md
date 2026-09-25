@@ -1,4 +1,4 @@
-# Video Sync Companion 0.4.2
+# Video Sync Companion 0.4.3
 
 Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at `http://localhost:3000` or `http://127.0.0.1:3000`. All HTTP sync has been removed.
 
@@ -15,9 +15,9 @@ The terminal follows pause, play, seeks, playback rate, and detected stalls. Whe
 
 Only top-level terminal tabs on the exact allowed local origins receive replay video state. They auto-link when loaded; unrelated localhost ports and terminal subframes remain excluded. The integrated side panel embeds the local /live page and does not receive or forward F1 TV media state. Other localhost ports cannot retrieve it. The HTTP endpoint returns 410 and no state. Pairing lasts for the browser session; repeat it after browser restart.
 
-Messages contain a version, random media identity, sequence, playback time, duration, paused/buffering/ended state, playback rate, title (up to 240 characters), and timestamp. They contain **no URL**, video, audio, screenshot, cookie, credentials, or DRM keys. Page titles may themselves contain personal information, so only pair terminal tabs you trust.
+Messages contain a version, random media identity, sequence, playback time, duration, paused/buffering/ended state, playback rate, title (up to 240 characters), timestamp, optional media wall-clock time, and the numeric F1 TV content ID parsed from the selected tab when available. They contain **no URL**, video, audio, screenshot, cookie, credentials, or DRM keys. Page titles may themselves contain personal information, so only pair terminal tabs you trust.
 
-A minimal document-start hook retains weak references to closed shadow roots. Observers, periodic discovery, and playback reporting activate only in the selected source tab. Detached videos are discarded. Each frame continuously ranks its attached video elements by recent clock advancement, playing state, and visible size. A stopped pre-roll/placeholder can therefore hand off to the real F1 TV race player without requiring a reconnect. The worker then elects one frame/player and holds it while fresh samples arrive. Source selection and election survive worker suspension. Old and out-of-order samples are rejected.
+A minimal document-start hook retains weak references to closed shadow roots. Observers, periodic discovery, and playback reporting activate only in the selected source tab. Detached videos are discarded. Each frame continuously ranks its attached video elements by recent clock advancement, playing state, visible size, intrinsic resolution, duration, and whether it belongs to the Bitmovin player. The worker also re-evaluates competing frames instead of permanently holding the first one that happened to report. A substantially stronger long-form race player can therefore replace an advancing placeholder, preview, or secondary video without requiring a reconnect. Source selection and election survive worker suspension. Old and out-of-order samples are rejected.
 
 For videos with edits or ads inserted into the same timeline, match again after the discontinuity. Providers that reuse the same element and source without any detectable media change can require manual rematching. To reselect among multiple players, disconnect and reconnect after the desired player is initialized.
 
