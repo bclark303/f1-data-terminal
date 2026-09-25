@@ -79,9 +79,9 @@ export const LIVE_TOPICS = [
   "CarData.z",
 ] as const;
 
-function object(value: unknown): Record<string, any> | null {
+function object(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object"
-    ? (value as Record<string, any>)
+    ? (value as Record<string, unknown>)
     : null;
 }
 
@@ -143,33 +143,33 @@ export function splitSignalRFrames(raw: string) {
 }
 
 export function recordsFromSignalRFrames(
-  frames: Array<Record<string, any>>,
+  frames: Array<Record<string, unknown>>,
 ): Array<{ feed: string; data: unknown }> {
   const records: Array<{ feed: string; data: unknown }> = [];
   for (const frame of frames) {
+    const args = frame.arguments;
     if (
       frame.type === 1 &&
       frame.target === "feed" &&
-      Array.isArray(frame.arguments) &&
-      frame.arguments.length >= 2
+      Array.isArray(args) &&
+      args.length >= 2
     ) {
       records.push({
-        feed: String(frame.arguments[0]),
-        data: frame.arguments[1],
+        feed: String(args[0]),
+        data: args[1],
       });
       continue;
     }
-    if (frame.type === 3 && object(frame.result)) {
-      for (const [feed, data] of Object.entries(
-        frame.result as Record<string, unknown>,
-      ))
+    const result = object(frame.result);
+    if (frame.type === 3 && result) {
+      for (const [feed, data] of Object.entries(result))
         records.push({ feed, data });
     }
   }
   return records;
 }
 
-function values(value: unknown): any[] {
+function values(value: unknown): unknown[] {
   if (Array.isArray(value)) return value.filter(Boolean);
   const row = object(value);
   return row ? Object.values(row).filter(Boolean) : [];
