@@ -50,6 +50,7 @@ export function VideoSyncDiagnostics() {
   const video = clock.video;
   const anchor = clock.videoAnchor;
   const [retry, setRetry] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
     "idle",
   );
@@ -59,6 +60,11 @@ export function VideoSyncDiagnostics() {
     contentId: null,
     error: null,
   });
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -126,7 +132,6 @@ export function VideoSyncDiagnostics() {
   }, [retry, sync.sessionKey]);
 
   const diagnostic = useMemo(() => {
-    const now = Date.now();
     const projectedVideoTime = video ? projectVideo(video, now) : null;
     const sampleAgeMs = video ? Math.max(0, now - video.capturedAt) : null;
     const projectedWallClockMs =
@@ -297,6 +302,7 @@ export function VideoSyncDiagnostics() {
     clock.sessionStart,
     clock.syncOffsetMs,
     lookup,
+    now,
     sync.sessionKey,
     video,
   ]);
