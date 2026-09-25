@@ -1,4 +1,4 @@
-# Video Sync Companion 0.4
+# Video Sync Companion 0.4.1
 
 Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at `http://localhost:3000` or `http://127.0.0.1:3000`. All HTTP sync has been removed.
 
@@ -7,10 +7,10 @@ Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at
 1. Start the terminal locally, then open it in Chrome or Edge.
 2. Open `chrome://extensions` or `edge://extensions`, enable Developer mode, and load this folder unpacked. Existing users: **Reload** the extension and refresh both terminal and video tabs.
 3. With the **terminal tab active**, click the extension button. `LINK` confirms pairing. Clicking again unpairs it.
-4. With the **F1 TV tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. The extension also opens Chrome's side panel with the local **LIVE** terminal beside the F1 TV player. If no player appears, initialize playback and refresh the source tab. Clicking again disconnects.
+4. With the **F1 TV tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. The extension also opens Chrome's side panel with the local **LIVE** terminal beside the F1 TV player. A **PIN VIDEO** control appears over the selected F1 TV player when browser Picture-in-Picture is available; use it to float the real F1 TV video over the replay terminal without copying or re-hosting the protected stream. If no player appears, initialize playback and refresh the source tab. Clicking the extension again disconnects.
 5. For replays, return to the standalone terminal when needed. When automatic sync metadata is available, it anchors itself without any lap selection. Open AUTO/SYNC to see the detected video time and race-start offset. MATCH NOW remains the fallback.
 
-The terminal follows pause, play, seeks, playback rate, and detected stalls. Losing the source pauses the clock. Changing media invalidates the anchor. Manual replay controls turn off follow; ±1 / ±0.1 second offset buttons preserve it. Without the companion, MATCH NOW starts the terminal's manual clock.
+The terminal follows pause, play, seeks, playback rate, and detected stalls. When automatic replay alignment succeeds, VIDEO LOCK is enabled and the terminal timeline becomes read-only: scrub in F1 TV and the data follows the video. Losing the source pauses the clock. Changing media invalidates the anchor. ±1 / ±0.1 second offset buttons preserve the lock. Turning VIDEO LOCK off restores manual replay controls. Without the companion, MATCH NOW starts the terminal's manual clock.
 
 ## Scope and privacy
 
