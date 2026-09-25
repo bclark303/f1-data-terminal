@@ -327,6 +327,86 @@ test("Bitmovin player clock wins over a shifted raw media timestamp", async ({
   ).toBeVisible();
 });
 
+test("video diagnostic window exposes sync clocks and anchor state", async ({
+  page,
+}) => {
+  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { sessionStartSec: 30, contentId: "fixture-content" },
+    }),
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "VIDEO DIAG" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Video Sync Diagnostics" }),
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    let sequence = 0;
+    const state = { currentTime: 100, rawCurrentTime: 20 };
+    const timer = window.setInterval(
+      () =>
+        window.postMessage(
+          {
+            source: "F1_DATA_TERMINAL_EXTENSION",
+            state: {
+              version: 1,
+              sourceId: "diag-player",
+              sequence: sequence++,
+              currentTime: state.currentTime,
+              rawCurrentTime: state.rawCurrentTime,
+              clockSource: "bitmovin-ui",
+              duration: 500,
+              paused: true,
+              buffering: false,
+              ended: false,
+              playbackRate: 1,
+              title: "Diagnostic F1 TV replay",
+              capturedAt: Date.now(),
+              wallClockMs: null,
+              contentId: "fixture-content",
+            },
+          },
+          location.origin,
+        ),
+      200,
+    );
+    (
+      window as unknown as {
+        diagTimer: number;
+        diagState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).diagTimer = timer;
+    (
+      window as unknown as {
+        diagTimer: number;
+        diagState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).diagState = state;
+  });
+
+  await expect(page.getByText("ARMED — SCRUB TO RACE START")).toBeVisible();
+  await expect(page.getByText("bitmovin-ui", { exact: true })).toBeVisible();
+  await expect(page.getByText("fixture-content", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("1:40", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("0:20", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => {
+    const state = (
+      window as unknown as {
+        diagState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).diagState;
+    state.currentTime = 31;
+    state.rawCurrentTime = 21;
+  });
+
+  await expect(page.getByText("VIDEO LOCK IS ACTIVE")).toBeVisible();
+  await expect(page.getByText("START", { exact: true })).toBeVisible();
+  await expect(page.getByText("ON", { exact: true }).last()).toBeVisible();
+});
+
 test("scrubbing F1 TV to race start automatically locks replay sync", async ({
   page,
 }) => {
