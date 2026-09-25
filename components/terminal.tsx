@@ -12,6 +12,7 @@ import type {
   Weather,
 } from "@/lib/types";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   indexRows,
   makeLapIndex,
@@ -220,14 +221,19 @@ function TerminalContent({
             </label>
           </div>
         </div>
-        <button
-          className="layoutResetButton"
-          onClick={() =>
-            window.dispatchEvent(new Event("f1-terminal-reset-layout"))
-          }
-        >
-          RESET LAYOUT
-        </button>
+        <div className="topBarActions">
+          <Link className="layoutResetButton" href="/live">
+            LIVE MODE
+          </Link>
+          <button
+            className="layoutResetButton"
+            onClick={() =>
+              window.dispatchEvent(new Event("f1-terminal-reset-layout"))
+            }
+          >
+            RESET LAYOUT
+          </button>
+        </div>
         <div className="sessionStats">
           <span>{session.circuit_short_name}</span>
           <strong>LAP {currentLap}</strong>
