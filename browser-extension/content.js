@@ -1,11 +1,6 @@
 const terminal =
   window === window.top &&
   ["http://localhost:3000", "http://127.0.0.1:3000"].includes(location.origin);
-const formula1Page =
-  location.protocol === "https:" &&
-  (location.hostname === "f1tv.formula1.com" ||
-    location.hostname.endsWith(".formula1.com"));
-
 let enabled = false;
 let pipHost = null;
 let pipButton = null;
@@ -17,7 +12,7 @@ function removePipControl() {
 }
 
 function ensurePipControl() {
-  if (!enabled || terminal || !formula1Page || pipHost) return;
+  if (!enabled || terminal || pipHost) return;
   const host = document.createElement("div");
   host.style.position = "fixed";
   host.style.right = "12px";
