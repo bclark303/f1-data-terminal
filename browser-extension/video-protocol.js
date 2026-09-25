@@ -80,7 +80,9 @@ export function parseVideoState(value, now = Date.now()) {
         ? rawCurrentTime
         : null;
   const normalizedClockSource =
-    clockSource === "bitmovin-ui" || clockSource === "html5"
+    clockSource === "bitmovin-ui" ||
+    clockSource === "f1tv-ui" ||
+    clockSource === "html5"
       ? clockSource
       : "html5";
   return {

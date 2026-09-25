@@ -4,6 +4,8 @@
   const identities = new WeakMap();
   const activity = new WeakMap();
   const playerTimelineOffsets = new WeakMap();
+  const visibleTimelineOffsets = new WeakMap();
+  const visibleTimelineScans = new WeakMap();
   const observers = new Map();
   let enabled = false,
     timer = null,
@@ -103,6 +105,145 @@
       return null;
     }
   }
+  function parseDisplayedClock(value) {
+    const text = String(value ?? "").trim();
+    let match = text.match(/^(\d{1,2}):([0-5]\d):([0-5]\d)$/);
+    if (match) {
+      const seconds =
+        Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+      return seconds <= 8 * 60 * 60 ? seconds : null;
+    }
+    match = text.match(/^(\d{1,3}):([0-5]\d)$/);
+    if (!match) return null;
+    const seconds = Number(match[1]) * 60 + Number(match[2]);
+    return seconds <= 8 * 60 * 60 ? seconds : null;
+  }
+
+  function visibleClockElement(element) {
+    if (!(element instanceof Element) || !element.isConnected) return null;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 8 || rect.height < 8) return null;
+    const style = getComputedStyle(element);
+    if (
+      style.display === "none" ||
+      style.visibility === "hidden" ||
+      Number(style.opacity || "1") < 0.05
+    )
+      return null;
+    return rect;
+  }
+
+  function f1TvDisplayedClock(video) {
+    const videoRect = video.getBoundingClientRect();
+    if (videoRect.width < 120 || videoRect.height < 80) return null;
+
+    const scopes = [];
+    let ancestor = video.parentElement;
+    for (let depth = 0; ancestor && depth < 7; depth += 1) {
+      scopes.push(ancestor);
+      ancestor = ancestor.parentElement;
+    }
+    try {
+      const root = video.getRootNode?.();
+      if (root?.querySelectorAll) scopes.push(root);
+    } catch {
+      /* Ignore inaccessible roots. */
+    }
+    scopes.push(document);
+
+    const seen = new Set();
+    let best = null;
+    for (const scope of scopes) {
+      if (!scope?.querySelectorAll || seen.has(scope)) continue;
+      seen.add(scope);
+      let elements;
+      try {
+        elements = scope.querySelectorAll(
+          "time,span,[role='timer'],[class*='time' i],[data-testid*='time' i],div",
+        );
+      } catch {
+        continue;
+      }
+      for (const element of elements) {
+        if (element.childElementCount > 1) continue;
+        const text = element.textContent?.trim() ?? "";
+        if (text.length < 4 || text.length > 8) continue;
+        const seconds = parseDisplayedClock(text);
+        if (seconds == null) continue;
+        const rect = visibleClockElement(element);
+        if (!rect) continue;
+
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const withinX =
+          centerX >= videoRect.left - 80 && centerX <= videoRect.right + 80;
+        const withinY =
+          centerY >= videoRect.top - 30 && centerY <= videoRect.bottom + 100;
+        if (!withinX || !withinY) continue;
+
+        const vertical =
+          (centerY - videoRect.top) / Math.max(1, videoRect.height);
+        const fromLeft = Math.abs(centerX - videoRect.left);
+        const classHint =
+          /time|progress|control|seek/i.test(
+            `${element.className ?? ""} ${element.getAttribute("aria-label") ?? ""}`,
+          )
+            ? 200000
+            : 0;
+        const score =
+          1000000 +
+          classHint +
+          (vertical >= 0.55 ? 400000 : 0) +
+          (text.split(":").length === 3 ? 100000 : 0) -
+          fromLeft * 200 -
+          Math.abs(0.88 - vertical) * 100000;
+
+        if (!best || score > best.score)
+          best = { seconds, text, score };
+      }
+    }
+    return best;
+  }
+
+  function f1TvUiTimeline(video) {
+    const raw = Number(video.currentTime);
+    if (!Number.isFinite(raw)) return null;
+    const previous = visibleTimelineOffsets.get(video);
+    const now = Date.now();
+    const lastScan = visibleTimelineScans.get(video) ?? 0;
+    const shouldScan =
+      !previous || video.seeking || now - lastScan >= 1000;
+
+    if (shouldScan) {
+      visibleTimelineScans.set(video, now);
+      const displayed = f1TvDisplayedClock(video);
+      if (displayed) {
+        const offset = displayed.seconds - Math.floor(raw);
+        if (Number.isFinite(offset) && Math.abs(offset) <= 8 * 60 * 60) {
+          const next = {
+            offset,
+            displayedTime: displayed.seconds,
+            displayedText: displayed.text,
+            detectedAt: now,
+          };
+          visibleTimelineOffsets.set(video, next);
+          return {
+            currentTime: Math.max(0, raw + offset),
+            duration: Number.isFinite(video.duration) ? video.duration : null,
+            displayedTime: displayed.seconds,
+          };
+        }
+      }
+    }
+
+    if (!previous || !Number.isFinite(previous.offset)) return null;
+    return {
+      currentTime: Math.max(0, raw + previous.offset),
+      duration: Number.isFinite(video.duration) ? video.duration : null,
+      displayedTime: previous.displayedTime,
+    };
+  }
+
   function bitmovinTimeline(video) {
     const raw = Number(video.currentTime);
     const scopes = [];
@@ -180,6 +321,15 @@
   }
 
   function playbackTimeline(video) {
+    const visiblePlayer = f1TvUiTimeline(video);
+    if (visiblePlayer) {
+      return {
+        currentTime: visiblePlayer.currentTime,
+        duration: visiblePlayer.duration,
+        rawCurrentTime: Number(video.currentTime),
+        clockSource: "f1tv-ui",
+      };
+    }
     const player = bitmovinTimeline(video);
     if (player) {
       return {
