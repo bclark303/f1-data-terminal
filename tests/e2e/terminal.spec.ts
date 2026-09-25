@@ -257,7 +257,7 @@ test("paired F1 TV media UTC directly locates the replay and follows scrubbing",
     "180000",
   );
 
-  await page.getByRole("button", { name: "AUTO", exact: true }).click();
+  await page.getByRole("button", { name: "SYNCED", exact: true }).click();
   await expect(page.getByText("MATCHED · DASH UTC", { exact: true })).toBeVisible();
 });
 
