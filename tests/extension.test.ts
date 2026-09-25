@@ -166,7 +166,10 @@ test("trusted top-level terminals auto-link while unrelated origins and subframe
     { type: "F1_READY" },
     { tab: { id: 99 }, frameId: 1, url: "http://localhost:3000/" },
   );
-  assert.deepEqual(h.storage.terminalTabs, [99, 88]);
+  assert.equal(
+    Array.from(h.storage.terminalTabs as number[]).join(","),
+    "99,88",
+  );
   assert.equal(h.sent.length, 1);
   assert.equal(h.sent[0].tab, 88);
   assert.equal(h.sent[0].frame, 0);
