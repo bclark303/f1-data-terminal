@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "F1 Data Terminal Video Sync",
-  "version": "0.4.5",
-  "description": "Integrates F1 TV using its visible player timeline for replay sync, picture-in-picture, and live timing.",
+  "version": "0.4.6",
+  "description": "Integrates F1 TV using its current-time player label for replay sync, picture-in-picture, and live timing.",
   "permissions": [
     "activeTab",
     "tabs",
