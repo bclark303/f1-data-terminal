@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "F1 Data Terminal Video Sync",
-  "version": "0.4.3",
-  "description": "Integrates F1 TV video with player election, replay sync, picture-in-picture, and live timing.",
+  "version": "0.4.4",
+  "description": "Integrates F1 TV using the Bitmovin player clock for replay sync, picture-in-picture, and live timing.",
   "permissions": [
     "activeTab",
     "tabs",

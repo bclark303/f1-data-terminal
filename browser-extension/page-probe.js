@@ -3,6 +3,7 @@
   const tracked = new Set();
   const identities = new WeakMap();
   const activity = new WeakMap();
+  const playerTimelineOffsets = new WeakMap();
   const observers = new Map();
   let enabled = false,
     timer = null,
@@ -102,6 +103,99 @@
       return null;
     }
   }
+  function bitmovinTimeline(video) {
+    const raw = Number(video.currentTime);
+    const scopes = [];
+    try {
+      const container =
+        typeof video.closest === "function"
+          ? video.closest(".bitmovinplayer-container")
+          : null;
+      if (container) scopes.push(container);
+    } catch {
+      /* Ignore malformed host-page DOM. */
+    }
+    try {
+      const root = video.getRootNode?.();
+      if (root?.querySelectorAll) scopes.push(root);
+    } catch {
+      /* Ignore inaccessible roots. */
+    }
+    if (!scopes.includes(document)) scopes.push(document);
+
+    for (const scope of scopes) {
+      let candidates = [];
+      try {
+        candidates = [
+          ...scope.querySelectorAll(
+            ".bmpui-ui-seekbar[aria-valuenow][aria-valuemax]",
+          ),
+        ];
+      } catch {
+        continue;
+      }
+      for (const seekbar of candidates) {
+        const current = Number(seekbar.getAttribute("aria-valuenow"));
+        const duration = Number(seekbar.getAttribute("aria-valuemax"));
+        const minimum = Number(seekbar.getAttribute("aria-valuemin") ?? "0");
+        if (
+          !Number.isFinite(current) ||
+          !Number.isFinite(duration) ||
+          duration <= 0 ||
+          duration > 86400 ||
+          minimum !== 0 ||
+          current < 0 ||
+          current > duration + 5
+        )
+          continue;
+
+        // Bitmovin's seekbar ARIA value comes directly from
+        // player.getCurrentTime(), while the underlying HTMLMediaElement can use a
+        // different MSE timestamp origin. Learn that origin delta once and project
+        // the raw media clock through it. This also keeps advancing after the
+        // controls auto-hide and the accessibility value stops repainting.
+        const previous = playerTimelineOffsets.get(video);
+        let offset = previous?.offset;
+        if (!previous || current !== previous.lastAria) {
+          offset = current - Math.floor(raw);
+          playerTimelineOffsets.set(video, {
+            offset,
+            lastAria: current,
+            duration,
+          });
+        } else if (previous.duration !== duration) {
+          playerTimelineOffsets.set(video, {
+            ...previous,
+            duration,
+          });
+        }
+        if (!Number.isFinite(offset)) continue;
+        return {
+          currentTime: Math.max(0, Math.min(duration, raw + offset)),
+          duration,
+        };
+      }
+    }
+    return null;
+  }
+
+  function playbackTimeline(video) {
+    const player = bitmovinTimeline(video);
+    if (player) {
+      return {
+        currentTime: player.currentTime,
+        duration: player.duration,
+        rawCurrentTime: Number(video.currentTime),
+        clockSource: "bitmovin-ui",
+      };
+    }
+    return {
+      currentTime: Number(video.currentTime),
+      duration: Number.isFinite(video.duration) ? video.duration : null,
+      rawCurrentTime: Number(video.currentTime),
+      clockSource: "html5",
+    };
+  }
   function emit() {
     if (!enabled) return;
     const now = Date.now();
@@ -138,6 +232,8 @@
       if (!chosenAdvancing || bestScore > chosenScore + 5e8) chosen = best;
     }
     if (!chosen || !Number.isFinite(chosen.currentTime)) return;
+    const timeline = playbackTimeline(chosen);
+    if (!Number.isFinite(timeline.currentTime)) return;
     if (!identities.has(chosen)) identities.set(chosen, crypto.randomUUID());
     // Do not transmit media URLs. Identity changes invalidate anchors without disclosing tokens.
     const source = `${identities.get(chosen)}:${location.href}:${chosen.currentSrc}`;
@@ -166,8 +262,8 @@
           version: 1,
           sourceId: mediaId,
           sequence: sequence++,
-          currentTime: chosen.currentTime,
-          duration: Number.isFinite(chosen.duration) ? chosen.duration : null,
+          currentTime: timeline.currentTime,
+          duration: timeline.duration,
           paused: chosen.paused,
           buffering,
           ended: chosen.ended,
@@ -175,6 +271,8 @@
           title: document.title.slice(0, 240),
           capturedAt: now,
           wallClockMs: wallClockMs(chosen),
+          rawCurrentTime: timeline.rawCurrentTime,
+          clockSource: timeline.clockSource,
         },
       },
       "*",

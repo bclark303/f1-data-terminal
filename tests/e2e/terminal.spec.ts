@@ -261,6 +261,70 @@ test("paired F1 TV media UTC directly locates the replay and follows scrubbing",
   await expect(page.getByText("MATCHED · DASH UTC", { exact: true })).toBeVisible();
 });
 
+test("Bitmovin player clock wins over a shifted raw media timestamp", async ({
+  page,
+}) => {
+  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { sessionStartSec: 551, contentId: "1000010374" },
+    }),
+  );
+  await page.goto("/");
+  await page.evaluate(() => {
+    let sequence = 0;
+    const state = { currentTime: 552, rawCurrentTime: 179 };
+    const timer = window.setInterval(
+      () =>
+        window.postMessage(
+          {
+            source: "F1_DATA_TERMINAL_EXTENSION",
+            state: {
+              version: 1,
+              sourceId: "bitmovin-player",
+              sequence: sequence++,
+              currentTime: state.currentTime,
+              rawCurrentTime: state.rawCurrentTime,
+              clockSource: "bitmovin-ui",
+              duration: 7200,
+              paused: false,
+              buffering: false,
+              ended: false,
+              playbackRate: 1,
+              title: "F1 TV | Fixture Grand Prix",
+              capturedAt: Date.now(),
+              wallClockMs: null,
+              contentId: "1000010374",
+            },
+          },
+          location.origin,
+        ),
+      200,
+    );
+    (
+      window as unknown as {
+        bitmovinTimer: number;
+        bitmovinState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).bitmovinTimer = timer;
+    (
+      window as unknown as {
+        bitmovinTimer: number;
+        bitmovinState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).bitmovinState = state;
+  });
+
+  await expect(page.getByText(/VIDEO ●/)).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
+    "1000",
+  );
+  await page.getByRole("button", { name: "AUTO", exact: true }).click();
+  await expect(page.getByText(/BITMOVIN PLAYER/)).toBeVisible();
+  await expect(page.getByText(/MEDIA 2:59/)).toBeVisible();
+  await expect(page.getByText("MATCHED · OFFSET", { exact: true })).toBeVisible();
+});
+
 test("paired video auto-syncs from metadata without manual lap matching", async ({
   page,
 }) => {

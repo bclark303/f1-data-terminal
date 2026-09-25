@@ -449,6 +449,14 @@ export function ReplayControls() {
                       ? ` / ${formatVideoTime(video.duration)}`
                       : ""}{" "}
                     ·{" "}
+                    {video.clockSource === "bitmovin-ui"
+                      ? "BITMOVIN PLAYER"
+                      : "HTML5 MEDIA"}
+                    {video.rawCurrentTime != null &&
+                    Math.abs(video.rawCurrentTime - video.currentTime) > 1
+                      ? ` · MEDIA ${formatVideoTime(video.rawCurrentTime)}`
+                      : ""}
+                    {" · "}
                     {video.buffering
                       ? "BUFFERING"
                       : video.paused
@@ -543,13 +551,12 @@ export function ReplayControls() {
             </div>
 
             <p className="syncHelp">
-              The terminal first tries the F1 TV media UTC clock,
-              which maps the frame on screen directly onto OpenF1 timestamps.
-              If the player does not expose a usable UTC clock, it falls back to
-              the curated race-start offset only when the selected F1 TV content
-              and timeline look compatible with the full replay. While VIDEO LOCK
-              is on, scrub and control playback in F1 TV; the data follows
-              automatically. Use MATCH NOW only as a fallback.
+              The companion prefers Bitmovin&apos;s own player clock over
+              the underlying HTML5 media timestamp because F1 TV can use a
+              different MediaSource time origin. It then tries UTC-frame sync,
+              falling back to the curated race-start offset only when the F1 TV
+              content and timeline are compatible. While VIDEO LOCK is on, scrub
+              in F1 TV and the data follows automatically.
             </p>
 
             <div className="syncStatusRow">
