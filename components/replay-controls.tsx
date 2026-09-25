@@ -34,6 +34,18 @@ function formatUtc(ms: number) {
   return new Date(ms).toISOString().slice(11, 19) + " UTC";
 }
 
+function parseVideoClockLabel(value: string | null | undefined) {
+  const text = value?.split("/")[0]?.trim();
+  if (!text) return null;
+  const parts = text.split(":").map(Number);
+  if (parts.some((part) => !Number.isFinite(part) || part < 0)) return null;
+  if (parts.length === 3)
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return null;
+}
+
+
 export function ReplayControls() {
   const clock = useReplayClock();
   const sync = useReplaySync();
@@ -264,8 +276,15 @@ export function ReplayControls() {
       videoAnchor.sessionKey === sync.sessionKey &&
       videoAnchor.sourceId === videoSourceId,
   );
+  const currentTimeMatched = Boolean(
+    videoAnchor &&
+      videoSourceId &&
+      videoAnchor.kind === "current-time" &&
+      videoAnchor.sessionKey === sync.sessionKey &&
+      videoAnchor.sourceId === videoSourceId,
+  );
   const autoMatched =
-    wallClockMatched || offsetMatched || manualStartMatched;
+    wallClockMatched || offsetMatched || manualStartMatched || currentTimeMatched;
   const videoLocked = Boolean(video && videoAnchor && clock.following);
   const waitingForRaceStart = wallClockMatched
     ? Boolean(
@@ -302,24 +321,44 @@ export function ReplayControls() {
     setSyncOpen(true);
   };
 
-  const syncRaceStartHere = () => {
-    if (!video || !lapOneAnchor) return;
+  const syncToCurrentVideoTime = () => {
+    if (
+      !video ||
+      !lapOneAnchor ||
+      !currentAutoSync.metadata ||
+      currentAutoSync.status !== "ready"
+    )
+      return;
+
     attemptedAutoSources.current.add(
       `${sync.sessionKey}:${video.sourceId}`,
     );
-    const raceTimeMs = Date.parse(lapOneAnchor.raceTime);
-    if (!Number.isFinite(raceTimeMs)) return;
+
+    const raceStartMs = Date.parse(lapOneAnchor.raceTime);
+    if (!Number.isFinite(raceStartMs)) return;
+
+    const displayedVideoTime =
+      parseVideoClockLabel(video.uiClockText) ??
+      projectedVideoTime ??
+      video.currentTime;
+    const raceElapsedSec =
+      displayedVideoTime - currentAutoSync.metadata.sessionStartSec;
+    const clampedRaceElapsedMs = Math.max(
+      0,
+      Math.min(clock.duration, raceElapsedSec * 1000),
+    );
 
     const basis = video.rawCurrentTime != null ? "raw" : "player";
-    const videoTime = projectVideo(video, Date.now(), basis);
+    const anchorVideoTime = projectVideo(video, Date.now(), basis);
+
     clock.setSyncOffsetMs(0);
     clock.matchVideo({
       lap: lapOneAnchor.lap,
-      raceTimeMs,
-      videoTime,
+      raceTimeMs: raceStartMs + clampedRaceElapsedMs,
+      videoTime: anchorVideoTime,
       sourceId: video.sourceId,
       sessionKey: sync.sessionKey,
-      kind: "manual-start",
+      kind: "current-time",
       clock: basis,
     });
   };
@@ -450,18 +489,20 @@ export function ReplayControls() {
           +1
         </button>
         <button
-          className={manualStartMatched && autoActive ? "active syncStartButton" : "syncStartButton"}
-          disabled={!video || !lapOneAnchor}
-          title="Scrub F1 TV to the instant the race starts, then click. Uses the raw media clock so F1 TV display-time quirks do not matter."
-          onClick={syncRaceStartHere}
+          className={currentTimeMatched && autoActive ? "active syncNowButton" : "syncNowButton"}
+          disabled={
+            !video ||
+            !lapOneAnchor ||
+            currentAutoSync.status !== "ready" ||
+            !currentAutoSync.metadata
+          }
+          title="Read the current F1 TV time, translate it to race elapsed time, and lock the data terminal to the video."
+          onClick={syncToCurrentVideoTime}
         >
-          {manualStartMatched && autoActive ? "START ✓" : "SYNC START"}
+          {currentTimeMatched && autoActive ? "SYNCED" : "SYNC NOW"}
         </button>
-        <button
-          className={autoActive ? "active" : ""}
-          onClick={toggleSyncPopover}
-        >
-          {autoMatched && autoActive ? "SYNCED" : "SYNC"}
+        <button className="syncDetailsButton" onClick={toggleSyncPopover}>
+          DETAILS
         </button>
 
         {syncOpen && (
@@ -535,15 +576,21 @@ export function ReplayControls() {
             <div className="manualStartSync">
               <button
                 className="syncStartNowButton"
-                disabled={!video || !lapOneAnchor}
-                onClick={syncRaceStartHere}
+                disabled={
+                  !video ||
+                  !lapOneAnchor ||
+                  currentAutoSync.status !== "ready" ||
+                  !currentAutoSync.metadata
+                }
+                onClick={syncToCurrentVideoTime}
               >
-                USE CURRENT VIDEO POSITION AS RACE START
+                SYNC DATA TO CURRENT VIDEO TIME
               </button>
               <small>
-                Scrub F1 TV to the race start and press this. This calibration
-                uses the raw media clock and does not depend on F1 TV&apos;s
-                displayed timestamp or automatic offset detection.
+                Reads the current F1 TV playback time and subtracts the known
+                race-start offset. Example: video 10:16 minus race start 9:11.3
+                means the data jumps to about 1:04.7 into the race, then follows
+                later F1 TV seeks.
               </small>
             </div>
 
@@ -571,9 +618,11 @@ export function ReplayControls() {
                           ? `WAITING FOR RACE START · ${formatVideoTime(projectedVideoTime ?? 0)} / ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)}`
                           : wallClockMatched
                             ? "MATCHED · DASH UTC"
-                            : videoAnchor?.kind === "manual-start"
-                              ? `SYNCED · MANUAL RACE START · ${videoAnchor.clock === "raw" ? "RAW MEDIA" : "PLAYER"}`
-                              : videoAnchor?.kind === "start"
+                            : videoAnchor?.kind === "current-time"
+                              ? `SYNCED · CURRENT VIDEO TIME · ${videoAnchor.clock === "raw" ? "RAW FOLLOW" : "PLAYER FOLLOW"}`
+                              : videoAnchor?.kind === "manual-start"
+                                ? `SYNCED · MANUAL RACE START · ${videoAnchor.clock === "raw" ? "RAW MEDIA" : "PLAYER"}`
+                                : videoAnchor?.kind === "start"
                                 ? "SYNCED · RACE START"
                                 : autoMatched
                                 ? "MATCHED · OFFSET"
@@ -629,10 +678,10 @@ export function ReplayControls() {
             </div>
 
             <p className="syncHelp">
-              The most reliable path is manual calibration: scrub F1 TV to the
-              instant the race starts and press SYNC START. The terminal records
-              that raw media position as race start and follows later F1 TV seeks
-              by clock delta. Automatic matching remains available as a convenience.
+              Press SYNC NOW at any point in the race. The terminal reads the
+              current F1 TV time, subtracts the known pre-race offset, jumps the
+              data to the corresponding race time, and then follows subsequent
+              video seeks. MATCH NOW remains available for lap-based fallback.
             </p>
 
             <div className="syncStatusRow">
@@ -641,9 +690,11 @@ export function ReplayControls() {
                 {videoAnchor
                   ? videoAnchor.kind === "wall-clock"
                     ? `UTC FRAME @ ${formatVideoTime(videoAnchor.videoTime)}`
-                    : videoAnchor.kind === "manual-start"
-                      ? `RACE START HERE @ ${formatVideoTime(videoAnchor.videoTime)} · ${videoAnchor.clock === "raw" ? "RAW" : "PLAYER"}`
-                      : videoAnchor.kind === "start"
+                    : videoAnchor.kind === "current-time"
+                      ? `CURRENT VIDEO → ${formatUtc(videoAnchor.raceTimeMs)} · ${videoAnchor.clock === "raw" ? "RAW FOLLOW" : "PLAYER FOLLOW"}`
+                      : videoAnchor.kind === "manual-start"
+                        ? `RACE START HERE @ ${formatVideoTime(videoAnchor.videoTime)} · ${videoAnchor.clock === "raw" ? "RAW" : "PLAYER"}`
+                        : videoAnchor.kind === "start"
                         ? `RACE START @ ${formatVideoTime(videoAnchor.videoTime)}`
                         : `LAP ${videoAnchor.lap} @ ${formatVideoTime(videoAnchor.videoTime)}`
                   : "NONE"}
