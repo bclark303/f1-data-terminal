@@ -338,9 +338,8 @@ test("video diagnostic window exposes sync clocks and anchor state", async ({
   );
   await page.goto("/");
   await page.getByRole("button", { name: "VIDEO DIAG" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Video Sync Diagnostics" }),
-  ).toBeVisible();
+  const diag = page.getByLabel("Video Sync Diagnostics");
+  await expect(diag).toBeVisible();
 
   await page.evaluate(() => {
     let sequence = 0;
@@ -386,11 +385,17 @@ test("video diagnostic window exposes sync clocks and anchor state", async ({
     ).diagState = state;
   });
 
-  await expect(page.getByText("ARMED — SCRUB TO RACE START")).toBeVisible();
-  await expect(page.getByText("bitmovin-ui", { exact: true })).toBeVisible();
-  await expect(page.getByText("fixture-content", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("1:40", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("0:20", { exact: true })).toBeVisible();
+  await expect(
+    diag.getByText("ARMED — SCRUB TO RACE START").first(),
+  ).toBeVisible();
+  await expect(
+    diag.getByText("bitmovin-ui", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    diag.getByText("fixture-content", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(diag.getByText("1:40", { exact: true }).first()).toBeVisible();
+  await expect(diag.getByText("0:20", { exact: true }).first()).toBeVisible();
 
   await page.evaluate(() => {
     const state = (
@@ -402,9 +407,9 @@ test("video diagnostic window exposes sync clocks and anchor state", async ({
     state.rawCurrentTime = 21;
   });
 
-  await expect(page.getByText("VIDEO LOCK IS ACTIVE")).toBeVisible();
-  await expect(page.getByText("START", { exact: true })).toBeVisible();
-  await expect(page.getByText("ON", { exact: true }).last()).toBeVisible();
+  await expect(diag.getByText("VIDEO LOCK IS ACTIVE").first()).toBeVisible();
+  await expect(diag.getByText("START", { exact: true }).first()).toBeVisible();
+  await expect(diag.getByText("ON", { exact: true }).first()).toBeVisible();
 });
 
 test("scrubbing F1 TV to race start automatically locks replay sync", async ({
