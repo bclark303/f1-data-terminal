@@ -146,6 +146,30 @@ test("video protocol preserves a valid media wall clock and rejects garbage", ()
     parseVideoState({ ...base, contentId: "not-an-id" }, now)?.contentId,
     null,
   );
+  assert.equal(
+    parseVideoState(
+      {
+        ...base,
+        currentTime: 551.25,
+        rawCurrentTime: 178.25,
+        clockSource: "bitmovin-ui",
+      },
+      now,
+    )?.clockSource,
+    "bitmovin-ui",
+  );
+  assert.equal(
+    parseVideoState(
+      {
+        ...base,
+        currentTime: 551.25,
+        rawCurrentTime: 178.25,
+        clockSource: "bitmovin-ui",
+      },
+      now,
+    )?.rawCurrentTime,
+    178.25,
+  );
 });
 
 test("elected frame excludes competing video clocks and delivers only to paired main frame", async () => {
