@@ -173,11 +173,17 @@ chrome.runtime.onMessage.addListener((message, sender) => {
           { type: "F1_PROBE_ENABLE", enabled: true },
           { frameId: sender.frameId },
         );
-      if (
-        sender.frameId === 0 &&
-        isTerminalUrl(sender.url) &&
-        terminalTabs.includes(sender.tab.id)
-      ) {
+      if (sender.frameId === 0 && isTerminalUrl(sender.url)) {
+        if (!terminalTabs.includes(sender.tab.id)) {
+          await chrome.storage.session.set({
+            terminalTabs: [...terminalTabs, sender.tab.id],
+          });
+          await badge(
+            sender.tab.id,
+            "LINK",
+            "Terminal linked automatically; select an F1 TV video tab",
+          );
+        }
         await chrome.tabs.sendMessage(
           sender.tab.id,
           {

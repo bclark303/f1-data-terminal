@@ -6,6 +6,7 @@ export type VideoAnchor = {
   videoTime: number;
   sourceId: string;
   sessionKey: number;
+  kind?: "wall-clock" | "offset" | "manual";
 };
 export type ReplayState = {
   start: number;
