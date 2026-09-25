@@ -326,7 +326,8 @@ export function ReplayControls() {
       !video ||
       !lapOneAnchor ||
       !currentAutoSync.metadata ||
-      currentAutoSync.status !== "ready"
+      currentAutoSync.status !== "ready" ||
+      offsetUnsafe
     )
       return;
 
@@ -494,12 +495,13 @@ export function ReplayControls() {
             !video ||
             !lapOneAnchor ||
             currentAutoSync.status !== "ready" ||
-            !currentAutoSync.metadata
+            !currentAutoSync.metadata ||
+            offsetUnsafe
           }
           title="Read the current F1 TV time, translate it to race elapsed time, and lock the data terminal to the video."
           onClick={syncToCurrentVideoTime}
         >
-          {currentTimeMatched && autoActive ? "SYNCED" : "SYNC NOW"}
+          {currentTimeMatched && autoActive ? "SYNCED" : "SYNC"}
         </button>
         <button className="syncDetailsButton" onClick={toggleSyncPopover}>
           DETAILS
