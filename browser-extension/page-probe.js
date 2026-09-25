@@ -133,7 +133,114 @@
     return rect;
   }
 
+  function splitPlaybackLabel(text) {
+    const cleaned = String(text ?? "").trim();
+    if (!cleaned) return null;
+    const parts = cleaned
+      .split("/")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const current = parseDisplayedClock(parts[0]);
+    if (current == null) return null;
+    const total = parts.length > 1 ? parseDisplayedClock(parts[1]) : null;
+    return { current, total, text: cleaned };
+  }
+
+  function bitmovinPlaybackLabel(video) {
+    const videoRect = video.getBoundingClientRect();
+    const container =
+      typeof video.closest === "function"
+        ? video.closest(".bitmovinplayer-container")
+        : null;
+    const scopes = [];
+    if (container) scopes.push(container);
+    try {
+      const root = video.getRootNode?.();
+      if (root?.querySelectorAll) scopes.push(root);
+    } catch {
+      /* Ignore inaccessible roots. */
+    }
+    scopes.push(document);
+
+    const candidates = [];
+    const seen = new Set();
+    for (const scope of scopes) {
+      if (!scope?.querySelectorAll || seen.has(scope)) continue;
+      seen.add(scope);
+      let labels = [];
+      try {
+        labels = [
+          ...scope.querySelectorAll(".bmpui-ui-playbacktimelabel"),
+        ];
+      } catch {
+        continue;
+      }
+      for (const label of labels) {
+        const rect = visibleClockElement(label);
+        if (!rect) continue;
+        const parsed = splitPlaybackLabel(label.textContent);
+        if (!parsed) continue;
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const withinVertical =
+          centerY >= videoRect.top + videoRect.height * 0.45 &&
+          centerY <= videoRect.bottom + 100;
+        const withinHorizontal =
+          centerX >= videoRect.left - 80 &&
+          centerX <= videoRect.right + 80;
+        if (!withinVertical || !withinHorizontal) continue;
+        candidates.push({
+          ...parsed,
+          rect,
+          centerX,
+          centerY,
+        });
+      }
+    }
+    if (!candidates.length) return null;
+
+    const combined = candidates.find((candidate) =>
+      candidate.text.includes("/"),
+    );
+    if (combined) {
+      return {
+        seconds: combined.current,
+        total: combined.total,
+        text: combined.text,
+        source: "bitmovin-current-total",
+      };
+    }
+
+    // Bitmovin commonly renders current time left of the seek bar and total
+    // duration to the right. The previous generic scan could mistakenly choose
+    // the total duration (for example 2:11:42) instead of the visible current
+    // time (for example 00:10:16). Prefer the left-most playback-time label,
+    // but only if it is on the left half of the video controls.
+    candidates.sort((a, b) => a.centerX - b.centerX);
+    const current = candidates.find(
+      (candidate) =>
+        candidate.centerX <= videoRect.left + videoRect.width * 0.5,
+    );
+    if (!current) return null;
+
+    const totalCandidate = candidates.find(
+      (candidate) =>
+        candidate !== current &&
+        candidate.centerX > current.centerX &&
+        candidate.current >= current.current,
+    );
+    return {
+      seconds: current.current,
+      total: totalCandidate?.current ?? null,
+      text: current.text,
+      source: "bitmovin-current-label",
+    };
+  }
+
   function f1TvDisplayedClock(video) {
+    const direct = bitmovinPlaybackLabel(video);
+    if (direct) return direct;
+
     const videoRect = video.getBoundingClientRect();
     if (videoRect.width < 120 || videoRect.height < 80) return null;
 
@@ -175,31 +282,34 @@
 
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-        const withinX =
-          centerX >= videoRect.left - 80 && centerX <= videoRect.right + 80;
-        const withinY =
-          centerY >= videoRect.top - 30 && centerY <= videoRect.bottom + 100;
-        if (!withinX || !withinY) continue;
-
+        const horizontal =
+          (centerX - videoRect.left) / Math.max(1, videoRect.width);
         const vertical =
           (centerY - videoRect.top) / Math.max(1, videoRect.height);
-        const fromLeft = Math.abs(centerX - videoRect.left);
-        const classHint =
-          /time|progress|control|seek/i.test(
-            `${element.className ?? ""} ${element.getAttribute("aria-label") ?? ""}`,
-          )
-            ? 200000
-            : 0;
-        const score =
-          1000000 +
-          classHint +
-          (vertical >= 0.55 ? 400000 : 0) +
-          (text.split(":").length === 3 ? 100000 : 0) -
-          fromLeft * 200 -
-          Math.abs(0.88 - vertical) * 100000;
 
+        // Generic fallback is deliberately conservative: the current-time
+        // readout lives near the lower-left player controls. Reject right-side
+        // duration labels instead of guessing.
+        if (
+          horizontal < -0.15 ||
+          horizontal > 0.55 ||
+          vertical < 0.55 ||
+          vertical > 1.2
+        )
+          continue;
+
+        const score =
+          1000000 -
+          Math.max(0, horizontal) * 700000 -
+          Math.abs(0.9 - vertical) * 200000;
         if (!best || score > best.score)
-          best = { seconds, text, score };
+          best = {
+            seconds,
+            total: null,
+            text,
+            score,
+            source: "generic-left-clock",
+          };
       }
     }
     return best;
@@ -224,13 +334,18 @@
             offset,
             displayedTime: displayed.seconds,
             displayedText: displayed.text,
+            uiDuration: displayed.total ?? null,
             detectedAt: now,
           };
           visibleTimelineOffsets.set(video, next);
           return {
             currentTime: Math.max(0, raw + offset),
-            duration: Number.isFinite(video.duration) ? video.duration : null,
+            duration:
+              displayed.total ??
+              (Number.isFinite(video.duration) ? video.duration : null),
             displayedTime: displayed.seconds,
+            displayedText: displayed.text,
+            uiDuration: displayed.total ?? null,
           };
         }
       }
@@ -239,8 +354,12 @@
     if (!previous || !Number.isFinite(previous.offset)) return null;
     return {
       currentTime: Math.max(0, raw + previous.offset),
-      duration: Number.isFinite(video.duration) ? video.duration : null,
+      duration:
+        previous.uiDuration ??
+        (Number.isFinite(video.duration) ? video.duration : null),
       displayedTime: previous.displayedTime,
+      displayedText: previous.displayedText,
+      uiDuration: previous.uiDuration ?? null,
     };
   }
 
@@ -328,6 +447,8 @@
         duration: visiblePlayer.duration,
         rawCurrentTime: Number(video.currentTime),
         clockSource: "f1tv-ui",
+        uiClockText: visiblePlayer.displayedText ?? null,
+        uiDuration: visiblePlayer.uiDuration ?? null,
       };
     }
     const player = bitmovinTimeline(video);
@@ -337,6 +458,8 @@
         duration: player.duration,
         rawCurrentTime: Number(video.currentTime),
         clockSource: "bitmovin-ui",
+        uiClockText: null,
+        uiDuration: player.duration ?? null,
       };
     }
     return {
@@ -344,6 +467,8 @@
       duration: Number.isFinite(video.duration) ? video.duration : null,
       rawCurrentTime: Number(video.currentTime),
       clockSource: "html5",
+      uiClockText: null,
+      uiDuration: null,
     };
   }
   function emit() {
@@ -423,6 +548,8 @@
           wallClockMs: wallClockMs(chosen),
           rawCurrentTime: timeline.rawCurrentTime,
           clockSource: timeline.clockSource,
+          uiClockText: timeline.uiClockText,
+          uiDuration: timeline.uiDuration,
         },
       },
       "*",
