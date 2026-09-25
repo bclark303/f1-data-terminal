@@ -1,20 +1,19 @@
-# Video Sync Companion 0.4.1
+# Video Sync Companion 0.4.2
 
 Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at `http://localhost:3000` or `http://127.0.0.1:3000`. All HTTP sync has been removed.
 
 ## Install and pair
 
-1. Start the terminal locally, then open it in Chrome or Edge.
+1. Start the terminal locally, then open it in Chrome or Edge. Trusted top-level terminal tabs on `localhost:3000` / `127.0.0.1:3000` link automatically.
 2. Open `chrome://extensions` or `edge://extensions`, enable Developer mode, and load this folder unpacked. Existing users: **Reload** the extension and refresh both terminal and video tabs.
-3. With the **terminal tab active**, click the extension button. `LINK` confirms pairing. Clicking again unpairs it.
-4. With the **F1 TV tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. The extension also opens Chrome's side panel with the local **LIVE** terminal beside the F1 TV player. A **PIN VIDEO** control appears over the selected F1 TV player when browser Picture-in-Picture is available; use it to float the real F1 TV video over the replay terminal without copying or re-hosting the protected stream. If no player appears, initialize playback and refresh the source tab. Clicking the extension again disconnects.
-5. For replays, return to the standalone terminal when needed. When automatic sync metadata is available, it anchors itself without any lap selection. Open AUTO/SYNC to see the detected video time and race-start offset. MATCH NOW remains the fallback.
+3. With the **F1 TV tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. The extension also opens Chrome's side panel with the local **LIVE** terminal beside the F1 TV player. A **PIN VIDEO** control appears over the selected F1 TV player when browser Picture-in-Picture is available; use it to float the real F1 TV video over the replay terminal without copying or re-hosting the protected stream. If no player appears, initialize playback and refresh the source tab. Clicking the extension again disconnects.
+4. For replays, return to the standalone terminal when needed. The companion first tries the media element's real-world UTC clock and maps the current F1 TV frame directly to OpenF1 timestamps. If that clock is unavailable, it falls back to the curated race-start offset. Open AUTO/SYNC to see whether the lock is using DASH UTC or the offset fallback. MATCH NOW remains the last-resort fallback.
 
 The terminal follows pause, play, seeks, playback rate, and detected stalls. When automatic replay alignment succeeds, VIDEO LOCK is enabled and the terminal timeline becomes read-only: scrub in F1 TV and the data follows the video. Losing the source pauses the clock. Changing media invalidates the anchor. ±1 / ±0.1 second offset buttons preserve the lock. Turning VIDEO LOCK off restores manual replay controls. Without the companion, MATCH NOW starts the terminal's manual clock.
 
 ## Scope and privacy
 
-Only paired standalone terminal tabs on exact allowed origins receive replay video state, in the top frame. The integrated side panel embeds the local /live page and does not receive or forward F1 TV media state. Other localhost ports cannot retrieve it. The HTTP endpoint returns 410 and no state. Pairing lasts for the browser session; repeat it after browser restart.
+Only top-level terminal tabs on the exact allowed local origins receive replay video state. They auto-link when loaded; unrelated localhost ports and terminal subframes remain excluded. The integrated side panel embeds the local /live page and does not receive or forward F1 TV media state. Other localhost ports cannot retrieve it. The HTTP endpoint returns 410 and no state. Pairing lasts for the browser session; repeat it after browser restart.
 
 Messages contain a version, random media identity, sequence, playback time, duration, paused/buffering/ended state, playback rate, title (up to 240 characters), and timestamp. They contain **no URL**, video, audio, screenshot, cookie, credentials, or DRM keys. Page titles may themselves contain personal information, so only pair terminal tabs you trust.
 
