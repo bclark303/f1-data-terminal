@@ -338,7 +338,7 @@ test("video diagnostic window exposes sync clocks and anchor state", async ({
   );
   await page.goto("/");
   await page.getByRole("button", { name: "VIDEO DIAG" }).click();
-  const diag = page.getByLabel("Video Sync Diagnostics");
+  const diag = page.locator(".videoDiagPanel");
   await expect(diag).toBeVisible();
 
   await page.evaluate(() => {
