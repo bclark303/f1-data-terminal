@@ -3,6 +3,7 @@
   const tracked = new Set();
   const identities = new WeakMap();
   const activity = new WeakMap();
+  const playerTimelineOffsets = new WeakMap();
   const observers = new Map();
   let enabled = false,
     timer = null,
@@ -148,13 +149,29 @@
         )
           continue;
 
-        // Bitmovin's seekbar ARIA value comes directly from player.getCurrentTime()
-        // but is rounded down to whole seconds. Reuse the media element's fractional
-        // second so the terminal still advances smoothly between UI updates.
-        const fraction =
-          Number.isFinite(raw) && raw >= 0 ? raw - Math.floor(raw) : 0;
+        // Bitmovin's seekbar ARIA value comes directly from
+        // player.getCurrentTime(), while the underlying HTMLMediaElement can use a
+        // different MSE timestamp origin. Learn that origin delta once and project
+        // the raw media clock through it. This also keeps advancing after the
+        // controls auto-hide and the accessibility value stops repainting.
+        const previous = playerTimelineOffsets.get(video);
+        let offset = previous?.offset;
+        if (!previous || current !== previous.lastAria) {
+          offset = current - Math.floor(raw);
+          playerTimelineOffsets.set(video, {
+            offset,
+            lastAria: current,
+            duration,
+          });
+        } else if (previous.duration !== duration) {
+          playerTimelineOffsets.set(video, {
+            ...previous,
+            duration,
+          });
+        }
+        if (!Number.isFinite(offset)) continue;
         return {
-          currentTime: Math.min(duration, current + fraction),
+          currentTime: Math.max(0, Math.min(duration, raw + offset)),
           duration,
         };
       }
