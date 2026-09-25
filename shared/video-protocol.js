@@ -26,6 +26,7 @@ export function parseVideoState(value, now = Date.now()) {
     paused,
     buffering,
     ended,
+    wallClockMs,
   } = value;
   if (
     ![currentTime, playbackRate, capturedAt, sequence].every(Number.isFinite) ||
@@ -52,6 +53,14 @@ export function parseVideoState(value, now = Date.now()) {
     return null;
   if ([paused, buffering, ended].some((v) => typeof v !== "boolean"))
     return null;
+  const normalizedWallClock =
+    wallClockMs === null || wallClockMs === undefined
+      ? null
+      : Number.isFinite(wallClockMs) &&
+          wallClockMs >= 946684800000 &&
+          wallClockMs <= 4102444800000
+        ? wallClockMs
+        : null;
   return {
     version: PROTOCOL_VERSION,
     currentTime,
@@ -64,6 +73,7 @@ export function parseVideoState(value, now = Date.now()) {
     paused,
     buffering,
     ended,
+    wallClockMs: normalizedWallClock,
   };
 }
 export function isNewerState(previous, next) {
