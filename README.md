@@ -1,6 +1,6 @@
 # F1 Data Terminal
 
-A local, replay-first Formula 1 timing and telemetry companion using historical OpenF1 data. The race selector exposes completed OpenF1 race sessions from **2023 onward**, while keeping the 2025 Canadian Grand Prix as the default baseline.
+A local Formula 1 timing and telemetry companion with two modes: historical replay using OpenF1, and a best-effort **LIVE** terminal driven directly by Formula 1's public live-timing stream. The replay selector exposes completed OpenF1 race sessions from **2023 onward**, while keeping the 2025 Canadian Grand Prix as the default baseline.
 
 ## Run locally
 
@@ -24,6 +24,12 @@ Open http://localhost:3000. For normal use, `npm run build && npm start` runs a 
 - G loads are estimates from speed and XY heading, not accelerometer readings. Stale, poorly aligned, or implausible values are rejected. The short trailing filter introduces smoothing delay.
 - The circuit is reconstructed from one recorded clean lap. **Solid markers use available measured XY** (selected driver and the geometry driver). **Dashed markers estimate progress from the previous completed lap**. Estimates are hidden once that reference lap duration is exceeded and are unavailable on lap one. They cannot accurately represent pit stops, safety cars, or overtakes. Loading a driver makes their XY available; a full-field measured tracking mode is not included.
 
+## Integrated live mode
+
+Open **/live** for the standalone live terminal. It connects through the local Next server to Formula 1's SignalR Core timing stream and consumes DriverList, TimingData, TimingAppData, RaceControlMessages, WeatherData, TrackStatus, LapCount, SessionInfo/Status, and CarData telemetry. The transport is anonymous and unofficial; Formula 1 can change it or restrict individual feeds without notice, so missing feeds are shown as unavailable rather than inferred.
+
+Browser companion **0.4** adds Chrome/Edge Side Panel integration. With the local server running, selecting an F1 TV tab with the extension opens the live terminal beside the official F1 TV player. The video remains entirely inside F1 TV: the terminal does not proxy video/audio, inspect DRM, or receive F1 TV credentials.
+
 ## Video companion
 
 See [browser-extension/README.md](browser-extension/README.md). Version 0.3 requires explicitly pairing the terminal before selecting the video tab. The old HTTP bridge is retired and returns 410; it stores no playback metadata.
@@ -44,6 +50,7 @@ For a cut/edited broadcast, match again after each discontinuity. The companion 
 - `lib/replay-index.ts`: sorted numeric time indexes, bounded window lookup, completion-aware lap summaries, and position quality rules. No per-tick full telemetry scans.
 - `lib/replay-state.ts`: pure clock/follow state machine. `shared/video-protocol.js` validates both sides of extension messaging; `npm run extension:build` generates the extension copy.
 - `lib/auto-sync.ts` and `/api/auto-sync`: bounded, best-effort lookup of public MultiViewer session-start metadata used to align the F1 TV video clock automatically. Failure degrades to manual lap matching.
+- `lib/live-timing.ts` and `/api/live-timing`: pure live-feed reducer/selectors plus a Node-only SignalR-to-SSE bridge for Formula 1's anonymous timing stream. Compressed car telemetry is inflated server-side and forwarded only to the local browser.
 - `components/panel.tsx`: only window layout, persistence, and interaction. `track-viewport.tsx` owns camera pan/zoom/follow without DOM queries into another component.
 
 The source can access its own page-world probe messages; treat them as untrusted media metadata. Validation prevents malformed clocks, and the extension never forwards from unselected tabs. Terminal pairing and exact-origin checks isolate normal unrelated local applications. Pairing is browser-session scoped; pair again after restarting the browser. No full URLs, video/audio, cookies, screenshots, or DRM information are transmitted.
@@ -65,6 +72,6 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Tests cover replay completion boundaries, rewind, stale samples, numeric estimates, sync ownership/lifecycle, exact-origin pairing, competing frames, protocol validation, bounded caches, rate limits, and API validation. Browser tests seed synthetic race datasets in a temporary cache and exercise the actual production server; they do not require OpenF1 or F1 TV. Run them with port 3000 free to avoid connecting to your normal terminal. No automated test asserts F1 TV's current player internals or DRM behaviour.
+Tests cover replay completion boundaries, rewind, stale samples, numeric estimates, sync ownership/lifecycle, exact-origin pairing, competing frames, protocol validation, bounded caches, rate limits, and API validation. Browser tests seed synthetic race datasets in a temporary cache and exercise the actual production server; they do not require OpenF1 or F1 TV. Run them with port 3000 free to avoid connecting to your normal terminal. Live-mode browser tests use synthetic SSE records and do not contact Formula 1. No automated test asserts F1 TV's current player internals, Formula 1's live endpoint availability, or DRM behaviour.
 
 CI installs the committed lockfile with `npm ci`, runs these gates, and retains failure traces. Dependency updates are checked weekly.
