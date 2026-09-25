@@ -261,6 +261,87 @@ test("paired F1 TV media UTC directly locates the replay and follows scrubbing",
   await expect(page.getByText("MATCHED · DASH UTC", { exact: true })).toBeVisible();
 });
 
+test("visible F1 TV timeline can override a shifted raw media clock", async ({
+  page,
+}) => {
+  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { sessionStartSec: 551.3, contentId: "1000010374" },
+    }),
+  );
+  await page.goto("/");
+  await page.evaluate(() => {
+    let sequence = 0;
+    const state = { currentTime: 3168.9, rawCurrentTime: 380.9 };
+    const timer = window.setInterval(
+      () =>
+        window.postMessage(
+          {
+            source: "F1_DATA_TERMINAL_EXTENSION",
+            state: {
+              version: 1,
+              sourceId: "visible-f1tv-clock",
+              sequence: sequence++,
+              currentTime: state.currentTime,
+              rawCurrentTime: state.rawCurrentTime,
+              clockSource: "f1tv-ui",
+              duration: null,
+              paused: false,
+              buffering: false,
+              ended: false,
+              playbackRate: 1,
+              title: "F1 TV | 2026 Spanish Grand Prix",
+              capturedAt: Date.now(),
+              wallClockMs: null,
+              contentId: "1000010374",
+            },
+          },
+          location.origin,
+        ),
+      200,
+    );
+    (
+      window as unknown as {
+        f1tvUiTimer: number;
+        f1tvUiState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).f1tvUiTimer = timer;
+    (
+      window as unknown as {
+        f1tvUiTimer: number;
+        f1tvUiState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).f1tvUiState = state;
+  });
+
+  await expect(page.getByText(/VIDEO ●/)).toBeVisible();
+  await page.getByRole("button", { name: "VIDEO DIAG" }).click();
+  const diag = page.locator(".videoDiagPanel");
+  await expect(
+    diag.getByText("VISIBLE F1 TV TIMELINE", { exact: true }),
+  ).toBeVisible();
+  await expect(diag.getByText("52:48.9", { exact: true })).toBeVisible();
+  await expect(diag.getByText("6:20.9", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => {
+    const state = (
+      window as unknown as {
+        f1tvUiState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).f1tvUiState;
+    state.currentTime = 552;
+    state.rawCurrentTime = 381;
+  });
+
+  await expect(
+    page.getByRole("button", { name: "SYNCED", exact: true }),
+  ).toBeVisible();
+  await expect(
+    diag.getByText("VIDEO LOCK IS ACTIVE").first(),
+  ).toBeVisible();
+});
+
 test("Bitmovin player clock wins over a shifted raw media timestamp", async ({
   page,
 }) => {
