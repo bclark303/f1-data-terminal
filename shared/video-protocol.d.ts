@@ -10,6 +10,7 @@ export type VideoState = {
   paused: boolean;
   buffering: boolean;
   ended: boolean;
+  wallClockMs: number | null;
 };
 export const PROTOCOL_VERSION: number;
 export const STALE_MS: number;
