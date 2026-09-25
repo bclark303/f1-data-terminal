@@ -33,6 +33,12 @@ export function defaultLayout(id: string, width: number): PanelLayout {
       trackPanel: { x: left + 24, y: 389, width: right, height: 365 },
       controlPanel: { x: 12, y: 766, width: left, height: 365 },
       weatherPanel: { x: left + 24, y: 766, width: right, height: 365 },
+      videoDiagPanel: {
+        x: 12,
+        y: 120,
+        width: Math.max(420, width - 48),
+        height: 620,
+      },
     };
     if (compact[id]) return compact[id];
   }
@@ -44,6 +50,12 @@ export function defaultLayout(id: string, width: number): PanelLayout {
     trackPanel: { x: left + right + 36, y: 12, width: right, height: 365 },
     controlPanel: { x: left + 24, y: 389, width: right, height: 365 },
     weatherPanel: { x: left + right + 36, y: 389, width: right, height: 365 },
+    videoDiagPanel: {
+      x: Math.max(12, Math.floor((width - Math.min(720, width - 48)) / 2)),
+      y: 70,
+      width: Math.min(720, width - 48),
+      height: 650,
+    },
   };
   return layouts[id] ?? { x: 12, y: 12, width: 420, height: 320 };
 }
