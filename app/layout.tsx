@@ -3,10 +3,11 @@ import "./globals.css";
 import "./windowing.css";
 import "./g-force.css";
 import "./video-sync.css";
+import "./live.css";
 
 export const metadata: Metadata = {
   title: "F1 Data Terminal",
-  description: "Replay-synchronized Formula 1 timing and telemetry terminal",
+  description: "Replay and live Formula 1 timing and telemetry terminal",
 };
 
 export default function RootLayout({
