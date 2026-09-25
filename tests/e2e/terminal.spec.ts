@@ -197,6 +197,7 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
   await page.goto("/");
   await page.evaluate(() => {
     let sequence = 0;
+    const state = { currentTime: 100 };
     const timer = window.setInterval(
       () =>
         window.postMessage(
@@ -206,7 +207,7 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
               version: 1,
               sourceId: "auto-player",
               sequence: sequence++,
-              currentTime: 100,
+              currentTime: state.currentTime,
               duration: 500,
               paused: true,
               buffering: false,
@@ -220,7 +221,18 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
         ),
       250,
     );
-    (window as unknown as { autoSyncTimer: number }).autoSyncTimer = timer;
+    (
+      window as unknown as {
+        autoSyncTimer: number;
+        autoVideoState: { currentTime: number };
+      }
+    ).autoSyncTimer = timer;
+    (
+      window as unknown as {
+        autoSyncTimer: number;
+        autoVideoState: { currentTime: number };
+      }
+    ).autoVideoState = state;
   });
 
   await expect(page.getByText("VIDEO ●")).toBeVisible();
@@ -229,6 +241,19 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
   ).toBeVisible();
   await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
     "70000",
+  );
+  await expect(
+    page.getByRole("slider", { name: "Replay position" }),
+  ).toBeDisabled();
+  await page.evaluate(() => {
+    (
+      window as unknown as {
+        autoVideoState: { currentTime: number };
+      }
+    ).autoVideoState.currentTime = 160;
+  });
+  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
+    "130000",
   );
   await page.getByRole("button", { name: "AUTO", exact: true }).click();
   await expect(page.getByText("MATCHED", { exact: true })).toBeVisible();
@@ -277,6 +302,10 @@ test("direct sync follows pause, rejects malformed samples, and manual seek dise
   await page.getByRole("button", { name: "MATCH NOW" }).click();
   await expect(
     page.getByRole("button", { name: "ON", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "ON", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "OFF", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Close synchronization" }).click();
   await page.getByRole("slider").press("Home");

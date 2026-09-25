@@ -145,6 +145,36 @@
       "*",
     );
   }
+  window.addEventListener("F1_DATA_TERMINAL_PIP", () => {
+    const reply = (status) =>
+      window.dispatchEvent(
+        new CustomEvent("F1_DATA_TERMINAL_PIP_RESULT", { detail: status }),
+      );
+    if (!enabled || !chosen || !chosen.isConnected) {
+      reply("NO_VIDEO");
+      return;
+    }
+    if (
+      !document.pictureInPictureEnabled ||
+      chosen.disablePictureInPicture ||
+      typeof chosen.requestPictureInPicture !== "function"
+    ) {
+      reply("UNAVAILABLE");
+      return;
+    }
+    if (document.pictureInPictureElement === chosen) {
+      document
+        .exitPictureInPicture()
+        .then(() => reply("OFF"))
+        .catch(() => reply("BLOCKED"));
+      return;
+    }
+    chosen
+      .requestPictureInPicture()
+      .then(() => reply("ON"))
+      .catch(() => reply("BLOCKED"));
+  });
+
   window.addEventListener("message", (event) => {
     if (event.source !== window || event.data?.source !== "F1_PROBE_CONTROL")
       return;

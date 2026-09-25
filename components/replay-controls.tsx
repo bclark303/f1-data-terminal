@@ -159,6 +159,7 @@ export function ReplayControls() {
   );
 
   const projectedVideoTime = video ? projectVideo(video) : null;
+  const videoLocked = Boolean(video && videoAnchor && clock.following);
   const waitingForRaceStart = Boolean(
     autoMatched &&
       currentAutoSync.metadata &&
@@ -224,22 +225,34 @@ export function ReplayControls() {
   return (
     <div className="replayBar">
       <div className="replayButtons">
-        <button onClick={() => clock.nudge(-30000)}>−30</button>
-        <button onClick={() => clock.nudge(-5000)}>−5</button>
+        <button disabled={videoLocked} onClick={() => clock.nudge(-30000)}>
+          −30
+        </button>
+        <button disabled={videoLocked} onClick={() => clock.nudge(-5000)}>
+          −5
+        </button>
         <button
           aria-label={clock.playing ? "Pause replay" : "Play replay"}
           className="playButton"
+          disabled={videoLocked}
           onClick={clock.toggle}
         >
           {clock.playing ? "Ⅱ" : "▶"}
         </button>
-        <button onClick={() => clock.nudge(5000)}>+5</button>
-        <button onClick={() => clock.nudge(30000)}>+30</button>
+        <button disabled={videoLocked} onClick={() => clock.nudge(5000)}>
+          +5
+        </button>
+        <button disabled={videoLocked} onClick={() => clock.nudge(30000)}>
+          +30
+        </button>
       </div>
 
       <div className="timelineBlock">
         <div className="timelineMeta">
-          <span>{formatClock(clock.elapsed)}</span>
+          <span>
+            {formatClock(clock.elapsed)}
+            {videoLocked ? " · VIDEO LOCK" : ""}
+          </span>
           <span>{formatClock(clock.duration)}</span>
         </div>
         <input
@@ -249,6 +262,12 @@ export function ReplayControls() {
           max={clock.duration}
           step={100}
           value={clock.elapsed}
+          disabled={videoLocked}
+          title={
+            videoLocked
+              ? "Scrub in F1 TV; the terminal follows automatically."
+              : "Replay position"
+          }
           onChange={(event) => clock.seek(Number(event.target.value))}
         />
       </div>
@@ -258,6 +277,7 @@ export function ReplayControls() {
           <button
             key={rate}
             className={clock.rate === rate ? "active" : ""}
+            disabled={videoLocked}
             onClick={() => clock.setRate(rate)}
           >
             {rate}×
@@ -270,7 +290,9 @@ export function ReplayControls() {
           className={`videoBridgeState ${video ? "connected" : ""}`}
           title={video ? video.title : "Browser companion not connected"}
         >
-          {video ? "VIDEO ●" : "VIDEO ○"}
+          {video
+            ? `VIDEO ● · ${formatVideoTime(projectedVideoTime ?? video.currentTime)}`
+            : "VIDEO ○"}
         </span>
         <strong>
           {clock.syncOffsetMs >= 0 ? "+" : ""}
@@ -398,10 +420,10 @@ export function ReplayControls() {
             <p className="syncHelp">
               When automatic metadata is available, selecting the F1 TV video
               is enough: the terminal anchors itself to the published race-start
-              offset and follows pause, seek and playback-rate changes. If AUTO
-              SYNC is unavailable or incorrect for a particular replay, use the
-              lap selector and MATCH NOW as the fallback. Replay controls
-              disengage follow without destroying the existing anchor.
+              offset and follows pause, seek and playback-rate changes. While
+              VIDEO LOCK is on, scrub and control playback in F1 TV; the terminal
+              timeline follows automatically and its manual replay controls are
+              disabled. Use MATCH NOW only as a fallback.
             </p>
 
             <div className="syncStatusRow">
@@ -413,7 +435,7 @@ export function ReplayControls() {
               </strong>
             </div>
             <div className="syncStatusRow">
-              <span>AUTO FOLLOW</span>
+              <span>VIDEO LOCK</span>
               <button
                 className={autoActive ? "active" : ""}
                 disabled={!video || !videoAnchor}
