@@ -151,16 +151,26 @@ test("elected frame excludes competing video clocks and delivers only to paired 
   assert.equal(h.sent[0].message.state?.currentTime, 101);
   assert.equal(h.sent[0].frame, 0);
 });
-test("unrelated localhost and unpaired terminal readiness cannot retrieve video state", async () => {
+test("trusted top-level terminals auto-link while unrelated origins and subframes cannot retrieve state", async () => {
   const h = harness();
   h.storage.latestVideoState = h.state(10);
-  for (const sender of [
+  await h.send(
+    { type: "F1_READY" },
     { tab: { id: 77 }, frameId: 0, url: "http://localhost:4321/" },
+  );
+  await h.send(
+    { type: "F1_READY" },
     { tab: { id: 88 }, frameId: 0, url: "http://localhost:3000/" },
+  );
+  await h.send(
+    { type: "F1_READY" },
     { tab: { id: 99 }, frameId: 1, url: "http://localhost:3000/" },
-  ])
-    await h.send({ type: "F1_READY" }, sender);
-  assert.equal(h.sent.length, 0);
+  );
+  assert.deepEqual(h.storage.terminalTabs, [99, 88]);
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].tab, 88);
+  assert.equal(h.sent[0].frame, 0);
+  assert.equal(h.sent[0].message.state?.currentTime, 10);
 });
 test("stale stored state is never revived by terminal readiness", async () => {
   const h = harness();
