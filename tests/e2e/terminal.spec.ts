@@ -332,7 +332,9 @@ test("paired video auto-syncs from metadata without manual lap matching", async 
     "130000",
   );
   await page.getByRole("button", { name: "AUTO", exact: true }).click();
-  await expect(page.getByText("MATCHED", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("MATCHED · OFFSET", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("LAP 1 @ 0:30", { exact: true })).toBeVisible();
 });
 
