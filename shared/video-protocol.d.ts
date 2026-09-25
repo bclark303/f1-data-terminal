@@ -13,7 +13,7 @@ export type VideoState = {
   wallClockMs: number | null;
   contentId: string | null;
   rawCurrentTime: number | null;
-  clockSource: "bitmovin-ui" | "html5";
+  clockSource: "bitmovin-ui" | "f1tv-ui" | "html5";
 };
 export const PROTOCOL_VERSION: number;
 export const STALE_MS: number;
