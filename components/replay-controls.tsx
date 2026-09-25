@@ -493,7 +493,7 @@ export function ReplayControls() {
             </div>
 
             <p className="syncHelp">
-              The terminal first tries the F1 TV media's absolute UTC clock,
+              The terminal first tries the F1 TV media UTC clock,
               which maps the frame on screen directly onto OpenF1 timestamps.
               If the player does not expose a usable UTC clock, it falls back to
               the curated race-start offset. While VIDEO LOCK is on, scrub and
