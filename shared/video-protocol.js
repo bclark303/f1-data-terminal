@@ -28,6 +28,8 @@ export function parseVideoState(value, now = Date.now()) {
     ended,
     wallClockMs,
     contentId,
+    rawCurrentTime,
+    clockSource,
   } = value;
   if (
     ![currentTime, playbackRate, capturedAt, sequence].every(Number.isFinite) ||
@@ -68,6 +70,18 @@ export function parseVideoState(value, now = Date.now()) {
       : typeof contentId === "string" && /^\d{6,20}$/.test(contentId)
         ? contentId
         : null;
+  const normalizedRawCurrentTime =
+    rawCurrentTime === null || rawCurrentTime === undefined
+      ? null
+      : Number.isFinite(rawCurrentTime) &&
+          rawCurrentTime >= 0 &&
+          rawCurrentTime <= 86400
+        ? rawCurrentTime
+        : null;
+  const normalizedClockSource =
+    clockSource === "bitmovin-ui" || clockSource === "html5"
+      ? clockSource
+      : "html5";
   return {
     version: PROTOCOL_VERSION,
     currentTime,
@@ -82,6 +96,8 @@ export function parseVideoState(value, now = Date.now()) {
     ended,
     wallClockMs: normalizedWallClock,
     contentId: normalizedContentId,
+    rawCurrentTime: normalizedRawCurrentTime,
+    clockSource: normalizedClockSource,
   };
 }
 export function isNewerState(previous, next) {
