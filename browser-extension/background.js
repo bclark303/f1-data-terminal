@@ -5,6 +5,33 @@ import {
   STALE_MS,
 } from "./video-protocol.js";
 
+function isFormula1VideoTab(value) {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      (url.hostname === "f1tv.formula1.com" ||
+        url.hostname.endsWith(".formula1.com"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function openIntegratedLivePanel(tab) {
+  if (!tab?.id || !isFormula1VideoTab(tab.url)) return;
+  try {
+    await chrome.sidePanel.setOptions({
+      tabId: tab.id,
+      path: "sidepanel.html",
+      enabled: true,
+    });
+    await chrome.sidePanel.open({ tabId: tab.id });
+  } catch (error) {
+    console.warn("Integrated live panel:", error?.message ?? error);
+  }
+}
+
 async function badge(tabId, text, title) {
   try {
     await chrome.action.setBadgeText({ tabId, text });
@@ -93,6 +120,7 @@ chrome.action.onClicked.addListener((tab) =>
     await chrome.storage.session.set({ sourceTabId: tab.id });
     await enable(tab.id, true);
     await badge(tab.id, "WAIT", "Discovering a video player");
+    await openIntegratedLivePanel(tab);
   }),
 );
 chrome.tabs.onRemoved.addListener((id) =>
