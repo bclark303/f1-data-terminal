@@ -337,6 +337,8 @@ export function VideoSyncDiagnostics() {
             sampleAgeMs: diagnostic.sampleAgeMs,
             capturedAt: new Date(video.capturedAt).toISOString(),
             clockSource: video.clockSource,
+            uiClockText: video.uiClockText,
+            uiDuration: video.uiDuration,
             currentTime: video.currentTime,
             projectedTime: diagnostic.projectedVideoTime,
             rawCurrentTime: video.rawCurrentTime,
@@ -444,6 +446,10 @@ export function VideoSyncDiagnostics() {
           </dd>
           <dt>Player time</dt>
           <dd>{seconds(diagnostic.projectedVideoTime)}</dd>
+          <dt>Selected UI text</dt>
+          <dd>{video?.uiClockText ?? "—"}</dd>
+          <dt>UI duration</dt>
+          <dd>{seconds(video?.uiDuration ?? null)}</dd>
           <dt>Raw media time</dt>
           <dd>{seconds(video?.rawCurrentTime ?? null)}</dd>
           <dt>Duration</dt>

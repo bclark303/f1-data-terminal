@@ -465,6 +465,7 @@ export function ReplayControls() {
                       : video.clockSource === "bitmovin-ui"
                         ? "BITMOVIN PLAYER"
                         : "HTML5 MEDIA"}
+                    {video.uiClockText ? ` · UI ${video.uiClockText}` : ""}
                     {video.rawCurrentTime != null &&
                     Math.abs(video.rawCurrentTime - video.currentTime) > 1
                       ? ` · MEDIA ${formatVideoTime(video.rawCurrentTime)}`

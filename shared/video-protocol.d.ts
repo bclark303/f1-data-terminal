@@ -14,6 +14,8 @@ export type VideoState = {
   contentId: string | null;
   rawCurrentTime: number | null;
   clockSource: "bitmovin-ui" | "f1tv-ui" | "html5";
+  uiClockText: string | null;
+  uiDuration: number | null;
 };
 export const PROTOCOL_VERSION: number;
 export const STALE_MS: number;
