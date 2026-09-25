@@ -26,6 +26,7 @@ import { GForceDisplay } from "./g-force";
 import { Panel } from "./panel";
 import { ReplayControls } from "./replay-controls";
 import { ReplayClockProvider, useReplayClock } from "./replay-clock";
+import { VideoSyncDiagnostics } from "./video-sync-diagnostics";
 import {
   useDriverLocation,
   useDriverTelemetry,
@@ -63,6 +64,7 @@ function TerminalContent({
   const [selectedDriver, setSelectedDriver] = useState(
     drivers[0]?.driver_number ?? 0,
   );
+  const [showVideoDiag, setShowVideoDiag] = useState(false);
   const geometryDriver = drivers[0]?.driver_number ?? 0;
 
   const telemetry = useDriverTelemetry(session.session_key, selectedDriver);
@@ -222,6 +224,12 @@ function TerminalContent({
           </div>
         </div>
         <div className="topBarActions">
+          <button
+            className={`layoutResetButton ${showVideoDiag ? "active" : ""}`}
+            onClick={() => setShowVideoDiag((value) => !value)}
+          >
+            VIDEO DIAG
+          </button>
           <Link className="layoutResetButton" href="/live">
             LIVE MODE
           </Link>
@@ -531,6 +539,25 @@ function TerminalContent({
             />
           </div>
         </Panel>
+
+        {showVideoDiag && (
+          <Panel
+            title="Video Sync Diagnostics"
+            kicker="DEBUG / CLOCKS"
+            id="videoDiagPanel"
+            className="videoDiagPanel"
+            actions={
+              <button
+                aria-label="Close video diagnostics"
+                onClick={() => setShowVideoDiag(false)}
+              >
+                ×
+              </button>
+            }
+          >
+            <VideoSyncDiagnostics />
+          </Panel>
+        )}
       </div>
 
       <ReplayControls />
