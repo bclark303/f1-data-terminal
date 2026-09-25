@@ -40,6 +40,117 @@ test("race loads, prevents future lap results, seeks and preserves accessible co
   await page.getByRole("button", { name: "RESET LAYOUT" }).click();
   expect(errors).toEqual([]);
 });
+test("live mode renders F1 timing, telemetry, weather and race control", async ({
+  page,
+}) => {
+  const records = [
+    ["SessionInfo", {
+      Name: "Race",
+      Type: "Race",
+      Meeting: {
+        Name: "Spanish Grand Prix",
+        Location: "Madrid",
+        Country: { Name: "Spain" },
+      },
+    }],
+    ["SessionStatus", { Status: "Started" }],
+    ["LapCount", { CurrentLap: 12, TotalLaps: 66 }],
+    ["TrackStatus", { Status: "1" }],
+    ["WeatherData", {
+      AirTemp: "27.1",
+      TrackTemp: "42.0",
+      Humidity: "38",
+      Pressure: "1008",
+      WindSpeed: "2.5",
+      WindDirection: "180",
+      Rainfall: "0",
+    }],
+    ["DriverList", {
+      "1": {
+        Tla: "VER",
+        BroadcastName: "M VERSTAPPEN",
+        TeamName: "Red Bull Racing",
+        TeamColour: "3671C6",
+        Line: 1,
+      },
+    }],
+    ["TimingData", {
+      Lines: {
+        "1": {
+          Line: 1,
+          Position: "1",
+          GapToLeader: "",
+          IntervalToPositionAhead: { Value: "" },
+          LastLapTime: { Value: "1:20.000" },
+          BestLapTime: { Value: "1:19.500" },
+        },
+      },
+    }],
+    ["TimingAppData", {
+      Lines: {
+        "1": {
+          Stints: {
+            "0": { Compound: "MEDIUM", TotalLaps: 5 },
+          },
+        },
+      },
+    }],
+    ["CarData.z", {
+      Entries: [
+        {
+          Cars: {
+            "1": {
+              Channels: {
+                "0": 12000,
+                "2": 305,
+                "3": 8,
+                "4": 100,
+                "5": 0,
+                "45": 10,
+              },
+            },
+          },
+        },
+      ],
+    }],
+    ["RaceControlMessages", {
+      Messages: {
+        "0": {
+          Utc: "2026-09-20T13:01:02Z",
+          Lap: 12,
+          Category: "Flag",
+          Flag: "GREEN",
+          Message: "TRACK CLEAR",
+        },
+      },
+    }],
+  ];
+
+  const body = [
+    'event: status\ndata: {"status":"connected","at":1}\n',
+    ...records.map(
+      ([feed, data]) =>
+        `event: record\ndata: ${JSON.stringify({ feed, data, at: 2 })}\n`,
+    ),
+  ].join("\n");
+
+  await page.route("**/api/live-timing", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body,
+    }),
+  );
+
+  await page.goto("/live");
+  await expect(page.getByText("Spanish Grand Prix")).toBeVisible();
+  await expect(page.getByText("M VERSTAPPEN")).toBeVisible();
+  await expect(page.getByText("305", { exact: true })).toBeVisible();
+  await expect(page.getByText("TRACK CLEAR").first()).toBeVisible();
+  await expect(page.getByText("27.1°C")).toBeVisible();
+  await expect(page.getByText("LAP 12 / 66")).toBeVisible();
+});
+
 test("race selector switches between available historical races", async ({
   page,
 }) => {

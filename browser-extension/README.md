@@ -1,4 +1,4 @@
-# Video Sync Companion 0.3.1
+# Video Sync Companion 0.4
 
 Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at `http://localhost:3000` or `http://127.0.0.1:3000`. All HTTP sync has been removed.
 
@@ -7,14 +7,14 @@ Connects one selected HTML5 player to explicitly paired F1 Data Terminal tabs at
 1. Start the terminal locally, then open it in Chrome or Edge.
 2. Open `chrome://extensions` or `edge://extensions`, enable Developer mode, and load this folder unpacked. Existing users: **Reload** the extension and refresh both terminal and video tabs.
 3. With the **terminal tab active**, click the extension button. `LINK` confirms pairing. Clicking again unpairs it.
-4. With the **video tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. If no player appears, initialize playback and refresh the source tab. Clicking again disconnects.
-5. Return to the terminal. When automatic sync metadata is available, the terminal anchors itself without any lap selection. Open AUTO/SYNC to see the detected video time and race-start offset. MATCH NOW remains the fallback.
+4. With the **F1 TV tab active**, click the extension button. `WAIT` means discovery is running; `OK` means one player is selected and reporting. The extension also opens Chrome's side panel with the local **LIVE** terminal beside the F1 TV player. If no player appears, initialize playback and refresh the source tab. Clicking again disconnects.
+5. For replays, return to the standalone terminal when needed. When automatic sync metadata is available, it anchors itself without any lap selection. Open AUTO/SYNC to see the detected video time and race-start offset. MATCH NOW remains the fallback.
 
 The terminal follows pause, play, seeks, playback rate, and detected stalls. Losing the source pauses the clock. Changing media invalidates the anchor. Manual replay controls turn off follow; ±1 / ±0.1 second offset buttons preserve it. Without the companion, MATCH NOW starts the terminal's manual clock.
 
 ## Scope and privacy
 
-Only paired terminal tabs on exact allowed origins receive state, in the top frame. Other localhost ports cannot retrieve it. The HTTP endpoint returns 410 and no state. Pairing lasts for the browser session; repeat it after browser restart.
+Only paired standalone terminal tabs on exact allowed origins receive replay video state, in the top frame. The integrated side panel embeds the local /live page and does not receive or forward F1 TV media state. Other localhost ports cannot retrieve it. The HTTP endpoint returns 410 and no state. Pairing lasts for the browser session; repeat it after browser restart.
 
 Messages contain a version, random media identity, sequence, playback time, duration, paused/buffering/ended state, playback rate, title (up to 240 characters), and timestamp. They contain **no URL**, video, audio, screenshot, cookie, credentials, or DRM keys. Page titles may themselves contain personal information, so only pair terminal tabs you trust.
 

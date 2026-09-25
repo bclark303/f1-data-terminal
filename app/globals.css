@@ -96,6 +96,18 @@ button {
 .racePicker select:disabled {
   opacity: 0.65;
 }
+.topBarActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.topBarActions a.layoutResetButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .sessionStats {
   display: flex;
   align-items: center;
