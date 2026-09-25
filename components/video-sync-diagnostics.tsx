@@ -260,7 +260,7 @@ export function VideoSyncDiagnostics() {
         level: "error",
         title: "NO USABLE PLAYER CLOCK",
         detail:
-          "The extension is connected, but the terminal cannot compare the player position with the race-start target.",
+          "The extension is connected, but the terminal cannot compare the player position with the race-start target. Move the pointer over F1 TV once so its on-screen time control is visible.",
       };
     } else if (Math.abs(startDeltaSec) <= 8) {
       verdict = {
@@ -432,6 +432,16 @@ export function VideoSyncDiagnostics() {
           </dd>
           <dt>Clock source</dt>
           <dd>{video?.clockSource ?? "—"}</dd>
+          <dt>Clock quality</dt>
+          <dd>
+            {video?.clockSource === "f1tv-ui"
+              ? "VISIBLE F1 TV TIMELINE"
+              : video?.clockSource === "bitmovin-ui"
+                ? "BITMOVIN PLAYER TIMELINE"
+                : video
+                  ? "RAW HTML MEDIA TIMELINE"
+                  : "—"}
+          </dd>
           <dt>Player time</dt>
           <dd>{seconds(diagnostic.projectedVideoTime)}</dd>
           <dt>Raw media time</dt>
