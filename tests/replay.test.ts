@@ -41,6 +41,8 @@ const video = (patch: Partial<VideoState> = {}): VideoState => ({
   capturedAt: Date.now(),
   wallClockMs: null,
   contentId: null,
+  rawCurrentTime: null,
+  clockSource: "html5",
   ...patch,
 });
 function followed() {
