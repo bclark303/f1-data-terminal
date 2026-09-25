@@ -502,6 +502,95 @@ test("video diagnostic window exposes sync clocks and anchor state", async ({
   await expect(diag.getByText("ON", { exact: true }).first()).toBeVisible();
 });
 
+test("SYNC START uses the raw media clock and follows later F1 TV seeks", async ({
+  page,
+}) => {
+  await page.route("**/api/auto-sync?sessionKey=9999", (route) =>
+    route.fulfill({
+      status: 200,
+      json: { sessionStartSec: 30, contentId: "fixture-content" },
+    }),
+  );
+  await page.goto("/");
+  await page.evaluate(() => {
+    let sequence = 0;
+    const state = { currentTime: 616, rawCurrentTime: 380 };
+    const timer = window.setInterval(
+      () =>
+        window.postMessage(
+          {
+            source: "F1_DATA_TERMINAL_EXTENSION",
+            state: {
+              version: 1,
+              sourceId: "manual-raw-player",
+              sequence: sequence++,
+              currentTime: state.currentTime,
+              rawCurrentTime: state.rawCurrentTime,
+              clockSource: "f1tv-ui",
+              uiClockText: "00:10:16",
+              uiDuration: 7902,
+              duration: 7902,
+              paused: true,
+              buffering: false,
+              ended: false,
+              playbackRate: 1,
+              title: "F1 TV | Fixture Grand Prix",
+              capturedAt: Date.now(),
+              wallClockMs: null,
+              contentId: "fixture-content",
+            },
+          },
+          location.origin,
+        ),
+      200,
+    );
+    (
+      window as unknown as {
+        manualRawTimer: number;
+        manualRawState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).manualRawTimer = timer;
+    (
+      window as unknown as {
+        manualRawTimer: number;
+        manualRawState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).manualRawState = state;
+  });
+
+  await expect(page.getByText(/VIDEO ●/)).toBeVisible();
+  await page.getByRole("button", { name: "SYNC START" }).click();
+  await expect(
+    page.getByRole("button", { name: "START ✓" }),
+  ).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
+    "0",
+  );
+  await expect(
+    page.getByRole("slider", { name: "Replay position" }),
+  ).toBeDisabled();
+
+  await page.evaluate(() => {
+    const state = (
+      window as unknown as {
+        manualRawState: { currentTime: number; rawCurrentTime: number };
+      }
+    ).manualRawState;
+    state.currentTime = 2500;
+    state.rawCurrentTime = 440;
+  });
+
+  await expect(page.getByRole("slider", { name: "Replay position" })).toHaveValue(
+    "60000",
+  );
+
+  await page.getByRole("button", { name: "SYNCED", exact: true }).click();
+  await expect(
+    page.getByText(/SYNCED · MANUAL RACE START · RAW MEDIA/),
+  ).toBeVisible();
+  await expect(page.getByText(/RACE START HERE @/)).toBeVisible();
+});
+
 test("scrubbing F1 TV to race start automatically locks replay sync", async ({
   page,
 }) => {

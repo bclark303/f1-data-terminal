@@ -159,6 +159,45 @@ test("buffering freezes, disconnect pauses, matching source reconnects", () => {
   assert.equal(state.status, "following");
   assert.ok(state.elapsed >= 10000);
 });
+test("manual race-start sync follows the raw media clock even when player time is wrong", () => {
+  let state = initialReplay(start, start + 300000, 100);
+  state = replayReducer(state, {
+    type: "video",
+    video: video({
+      currentTime: 616,
+      rawCurrentTime: 380,
+      clockSource: "f1tv-ui",
+    }),
+    now: Date.now(),
+  });
+  state = replayReducer(state, {
+    type: "anchor",
+    anchor: {
+      lap: 1,
+      raceTimeMs: start,
+      videoTime: 380,
+      sourceId: "race-a",
+      sessionKey: 100,
+      kind: "manual-start",
+      clock: "raw",
+    },
+  });
+  assert.ok(state.elapsed < 100);
+  state = replayReducer(state, {
+    type: "video",
+    video: video({
+      sequence: 2,
+      currentTime: 1800,
+      rawCurrentTime: 440,
+      clockSource: "f1tv-ui",
+    }),
+    now: Date.now(),
+  });
+  assert.ok(Math.abs(state.elapsed - 60000) < 100);
+  assert.equal(state.following, true);
+  assert.equal(state.status, "following");
+});
+
 test("different media invalidates anchor and does not jump", () => {
   const state = replayReducer(followed(), {
     type: "video",

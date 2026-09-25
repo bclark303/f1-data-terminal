@@ -156,10 +156,14 @@ export function VideoSyncDiagnostics() {
     const sessionMatches = Boolean(
       anchor && anchor.sessionKey === sync.sessionKey,
     );
+    const anchorProjectedVideoTime =
+      anchor && video
+        ? projectVideo(video, now, anchor.clock ?? "player")
+        : null;
     const anchorRaceMs =
-      anchor && projectedVideoTime != null
+      anchor && anchorProjectedVideoTime != null
         ? anchor.raceTimeMs +
-          (projectedVideoTime - anchor.videoTime) * 1000 +
+          (anchorProjectedVideoTime - anchor.videoTime) * 1000 +
           clock.syncOffsetMs
         : null;
     const terminalDriftMs =
@@ -363,6 +367,7 @@ export function VideoSyncDiagnostics() {
       anchor: anchor
         ? {
             kind: anchor.kind ?? "unknown",
+            clock: anchor.clock ?? "player",
             lap: anchor.lap,
             sourceId: anchor.sourceId,
             sourceMatches: diagnostic.sourceMatches,
@@ -500,6 +505,8 @@ export function VideoSyncDiagnostics() {
         <dl>
           <dt>Anchor</dt>
           <dd>{anchor?.kind?.toUpperCase() ?? "NONE"}</dd>
+          <dt>Anchor clock</dt>
+          <dd>{anchor ? (anchor.clock ?? "player").toUpperCase() : "—"}</dd>
           <dt>Anchor lap</dt>
           <dd>{anchor?.lap ?? "—"}</dd>
           <dt>Anchor video time</dt>

@@ -102,7 +102,9 @@ export function ReplayControls() {
 
     if (
       videoAnchor?.sourceId === videoSourceId &&
-      (videoAnchor.kind === "wall-clock" || videoAnchor.kind === "manual")
+      (videoAnchor.kind === "wall-clock" ||
+        videoAnchor.kind === "manual" ||
+        videoAnchor.kind === "manual-start")
     )
       return;
 
@@ -255,7 +257,15 @@ export function ReplayControls() {
         videoAnchor.videoTime - currentAutoSync.metadata.sessionStartSec,
       ) < 0.001,
   );
-  const autoMatched = wallClockMatched || offsetMatched;
+  const manualStartMatched = Boolean(
+    videoAnchor &&
+      videoSourceId &&
+      videoAnchor.kind === "manual-start" &&
+      videoAnchor.sessionKey === sync.sessionKey &&
+      videoAnchor.sourceId === videoSourceId,
+  );
+  const autoMatched =
+    wallClockMatched || offsetMatched || manualStartMatched;
   const videoLocked = Boolean(video && videoAnchor && clock.following);
   const waitingForRaceStart = wallClockMatched
     ? Boolean(
@@ -290,6 +300,28 @@ export function ReplayControls() {
       setSelectedLap((next ?? current ?? sync.lapAnchors[0]).lap);
     }
     setSyncOpen(true);
+  };
+
+  const syncRaceStartHere = () => {
+    if (!video || !lapOneAnchor) return;
+    attemptedAutoSources.current.add(
+      `${sync.sessionKey}:${video.sourceId}`,
+    );
+    const raceTimeMs = Date.parse(lapOneAnchor.raceTime);
+    if (!Number.isFinite(raceTimeMs)) return;
+
+    const basis = video.rawCurrentTime != null ? "raw" : "player";
+    const videoTime = projectVideo(video, Date.now(), basis);
+    clock.setSyncOffsetMs(0);
+    clock.matchVideo({
+      lap: lapOneAnchor.lap,
+      raceTimeMs,
+      videoTime,
+      sourceId: video.sourceId,
+      sessionKey: sync.sessionKey,
+      kind: "manual-start",
+      clock: basis,
+    });
   };
 
   const matchNow = () => {
@@ -418,6 +450,14 @@ export function ReplayControls() {
           +1
         </button>
         <button
+          className={manualStartMatched && autoActive ? "active syncStartButton" : "syncStartButton"}
+          disabled={!video || !lapOneAnchor}
+          title="Scrub F1 TV to the instant the race starts, then click. Uses the raw media clock so F1 TV display-time quirks do not matter."
+          onClick={syncRaceStartHere}
+        >
+          {manualStartMatched && autoActive ? "START ✓" : "SYNC START"}
+        </button>
+        <button
           className={autoActive ? "active" : ""}
           onClick={toggleSyncPopover}
         >
@@ -492,6 +532,21 @@ export function ReplayControls() {
               )}
             </div>
 
+            <div className="manualStartSync">
+              <button
+                className="syncStartNowButton"
+                disabled={!video || !lapOneAnchor}
+                onClick={syncRaceStartHere}
+              >
+                USE CURRENT VIDEO POSITION AS RACE START
+              </button>
+              <small>
+                Scrub F1 TV to the race start and press this. This calibration
+                uses the raw media clock and does not depend on F1 TV&apos;s
+                displayed timestamp or automatic offset detection.
+              </small>
+            </div>
+
             <div className="syncStatusRow">
               <span>AUTO SYNC</span>
               <strong>
@@ -516,9 +571,11 @@ export function ReplayControls() {
                           ? `WAITING FOR RACE START · ${formatVideoTime(projectedVideoTime ?? 0)} / ${formatVideoTime(currentAutoSync.metadata.sessionStartSec)}`
                           : wallClockMatched
                             ? "MATCHED · DASH UTC"
-                            : videoAnchor?.kind === "start"
-                              ? "SYNCED · RACE START"
-                              : autoMatched
+                            : videoAnchor?.kind === "manual-start"
+                              ? `SYNCED · MANUAL RACE START · ${videoAnchor.clock === "raw" ? "RAW MEDIA" : "PLAYER"}`
+                              : videoAnchor?.kind === "start"
+                                ? "SYNCED · RACE START"
+                                : autoMatched
                                 ? "MATCHED · OFFSET"
                               : currentAutoSync.status === "loading"
                       ? "LOOKING UP…"
@@ -572,11 +629,10 @@ export function ReplayControls() {
             </div>
 
             <p className="syncHelp">
-              Start the F1 TV replay and expose its controls once. The companion
-              learns the visible F1 TV timeline from the on-screen time display,
-              even when the underlying HTML media clock uses a different origin.
-              Then scrub to the race start; the terminal locks automatically and
-              follows subsequent F1 TV seeks.
+              The most reliable path is manual calibration: scrub F1 TV to the
+              instant the race starts and press SYNC START. The terminal records
+              that raw media position as race start and follows later F1 TV seeks
+              by clock delta. Automatic matching remains available as a convenience.
             </p>
 
             <div className="syncStatusRow">
@@ -585,9 +641,11 @@ export function ReplayControls() {
                 {videoAnchor
                   ? videoAnchor.kind === "wall-clock"
                     ? `UTC FRAME @ ${formatVideoTime(videoAnchor.videoTime)}`
-                    : videoAnchor.kind === "start"
-                      ? `RACE START @ ${formatVideoTime(videoAnchor.videoTime)}`
-                      : `LAP ${videoAnchor.lap} @ ${formatVideoTime(videoAnchor.videoTime)}`
+                    : videoAnchor.kind === "manual-start"
+                      ? `RACE START HERE @ ${formatVideoTime(videoAnchor.videoTime)} · ${videoAnchor.clock === "raw" ? "RAW" : "PLAYER"}`
+                      : videoAnchor.kind === "start"
+                        ? `RACE START @ ${formatVideoTime(videoAnchor.videoTime)}`
+                        : `LAP ${videoAnchor.lap} @ ${formatVideoTime(videoAnchor.videoTime)}`
                   : "NONE"}
               </strong>
             </div>

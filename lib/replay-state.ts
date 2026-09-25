@@ -1,12 +1,14 @@
 import type { VideoState } from "../shared/video-protocol";
 import { STALE_MS } from "../shared/video-protocol.js";
+export type VideoClockBasis = "player" | "raw";
 export type VideoAnchor = {
   lap: number;
   raceTimeMs: number;
   videoTime: number;
   sourceId: string;
   sessionKey: number;
-  kind?: "wall-clock" | "start" | "offset" | "manual";
+  kind?: "wall-clock" | "start" | "offset" | "manual" | "manual-start";
+  clock?: VideoClockBasis;
 };
 export type ReplayState = {
   start: number;
@@ -29,16 +31,25 @@ export type ReplayAction =
   | { type: "play" | "pause" | "toggle" | "clear" }
   | { type: "anchor"; anchor: VideoAnchor }
   | { type: "follow"; enabled: boolean };
-export function projectVideo(video: VideoState, now = Date.now()) {
+export function projectVideo(
+  video: VideoState,
+  now = Date.now(),
+  clock: VideoClockBasis = "player",
+) {
   const advancing = !video.paused && !video.buffering && !video.ended;
-  return Math.min(
-    video.duration ?? Infinity,
-    video.currentTime +
-      (advancing
-        ? (Math.max(0, Math.min(500, now - video.capturedAt)) / 1000) *
-          video.playbackRate
-        : 0),
-  );
+  const base =
+    clock === "raw" && video.rawCurrentTime != null
+      ? video.rawCurrentTime
+      : video.currentTime;
+  const projected =
+    base +
+    (advancing
+      ? (Math.max(0, Math.min(500, now - video.capturedAt)) / 1000) *
+        video.playbackRate
+      : 0);
+  return clock === "raw"
+    ? projected
+    : Math.min(video.duration ?? Infinity, projected);
 }
 export function initialReplay(
   start: number,
@@ -79,7 +90,9 @@ function applyVideo(state: ReplayState, now: number): ReplayState {
     };
   const target =
     state.anchor.raceTimeMs +
-    (projectVideo(video, now) - state.anchor.videoTime) * 1000 -
+    (projectVideo(video, now, state.anchor.clock ?? "player") -
+      state.anchor.videoTime) *
+      1000 -
     state.start;
   const elapsed = Math.max(0, Math.min(state.duration, target));
   const ended = target >= state.duration || video.ended;
