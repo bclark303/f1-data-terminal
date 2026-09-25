@@ -1,0 +1,256 @@
+.liveShell {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  padding: 10px;
+}
+.liveTopBar {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--line);
+  background: #0d1218;
+  padding: 10px 14px;
+}
+.liveEventName {
+  margin-top: 5px;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: .035em;
+}
+.liveSessionName {
+  color: var(--muted);
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.liveHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.liveConnection,
+.liveNavButton {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: #10161d;
+  color: var(--muted);
+  padding: 0 9px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-decoration: none;
+}
+.liveConnection i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #777;
+}
+.liveConnection.connected { color: var(--text); }
+.liveConnection.connected i { background: #4dd17a; box-shadow: 0 0 8px #4dd17a; }
+.liveConnection.error i { background: #f05b5b; }
+.liveConnection.connecting i,
+.liveConnection.disconnected i { background: #e5b84b; }
+.liveStatusStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  background: #0a0f14;
+  padding: 6px 12px;
+  font-size: 9px;
+  letter-spacing: .07em;
+  color: var(--muted);
+}
+.liveStatusStrip strong { color: var(--text); }
+.liveGrid {
+  display: grid;
+  grid-template-columns: minmax(430px, 1.4fr) minmax(320px, 1fr);
+  gap: 10px;
+  margin-top: 10px;
+}
+.liveCard {
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: #0d1218;
+}
+.liveCardHeader {
+  min-height: 38px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-bottom: 1px solid var(--line);
+  padding: 5px 10px;
+}
+.liveCardHeader span {
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: .14em;
+}
+.liveCardHeader strong {
+  margin-top: 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.liveTimingTable { overflow: auto; }
+.liveTimingRow {
+  width: 100%;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 30px 70px minmax(70px,1fr) minmax(62px,.8fr) 78px 36px;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-bottom: 1px solid #1a232d;
+  background: transparent;
+  color: var(--text);
+  padding: 0 8px;
+  text-align: left;
+  font: inherit;
+  font-size: 10px;
+}
+button.liveTimingRow { cursor: pointer; }
+button.liveTimingRow:hover,
+button.liveTimingRow.selected { background: #141d26; }
+.liveTimingHead {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.liveDriverCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 900;
+}
+.liveDriverCell i {
+  width: 3px;
+  height: 18px;
+  display: inline-block;
+}
+.liveDriverHero {
+  display: grid;
+  grid-template-columns: 58px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.liveDriverHero h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.liveDriverHero p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+.liveDriverHero > b { font-size: 22px; }
+.liveDriverNumber {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--line);
+  font-size: 21px;
+  font-weight: 950;
+}
+.liveMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(70px, 1fr));
+}
+.liveMetric {
+  min-height: 56px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 9px;
+}
+.liveMetric span {
+  display: block;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.liveMetric strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 13px;
+}
+.liveConditionsTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px;
+  border-bottom: 1px solid var(--line);
+}
+.liveConditionsTitle span { color: var(--muted); font-size: 9px; }
+.liveRaceControl {
+  max-height: 360px;
+  overflow: auto;
+}
+.liveRaceMessage {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #1a232d;
+}
+.liveRaceMessage > span {
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+.liveRaceMessage small {
+  color: var(--muted);
+  font-size: 8px;
+  text-align: right;
+}
+.liveRaceMessage p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+}
+.liveEmpty {
+  padding: 18px 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+@media (max-width: 840px) {
+  .liveShell { padding: 0; }
+  .liveTopBar { border-left: 0; border-right: 0; }
+  .liveGrid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .liveCard { border-left: 0; border-right: 0; }
+  .liveMetrics { grid-template-columns: repeat(2, 1fr); }
+  .liveTimingRow {
+    grid-template-columns: 28px 58px minmax(58px,1fr) minmax(52px,.8fr) 70px 30px;
+    font-size: 9px;
+  }
+}
+@media (max-width: 460px) {
+  .liveTopBar { align-items: flex-start; }
+  .liveHeaderActions { flex-direction: column; align-items: stretch; }
+  .liveEventName { font-size: 14px; }
+  .liveTimingRow {
+    grid-template-columns: 25px 55px 1fr 1fr 65px 26px;
+    gap: 3px;
+    padding: 0 5px;
+  }
+}
