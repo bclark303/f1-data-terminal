@@ -530,7 +530,7 @@ test("SYNC START uses the raw media clock and follows later F1 TV seeks", async 
               uiClockText: "00:10:16",
               uiDuration: 7902,
               duration: 7902,
-              paused: false,
+              paused: true,
               buffering: false,
               ended: false,
               playbackRate: 1,
