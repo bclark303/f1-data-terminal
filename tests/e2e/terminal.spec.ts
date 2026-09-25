@@ -127,12 +127,12 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
   ];
 
   const body = [
-    'event: status\\ndata: {"status":"connected","at":1}\\n',
+    'event: status\ndata: {"status":"connected","at":1}\n',
     ...records.map(
       ([feed, data]) =>
-        `event: record\\ndata: ${JSON.stringify({ feed, data, at: 2 })}\\n`,
+        `event: record\ndata: ${JSON.stringify({ feed, data, at: 2 })}\n`,
     ),
-  ].join("\\n");
+  ].join("\n");
 
   await page.route("**/api/live-timing", (route) =>
     route.fulfill({
