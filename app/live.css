@@ -1,62 +1,73 @@
 .liveShell {
+  --driver-color: #7e8c99;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 78% -10%, color-mix(in srgb, var(--driver-color) 14%, transparent), transparent 34rem),
+    linear-gradient(180deg, #080b0f 0%, var(--bg) 32rem);
   color: var(--text);
   padding: 10px;
 }
+
 .liveTopBar {
-  min-height: 72px;
+  min-height: 78px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border: 1px solid var(--line);
-  background: #0d1218;
-  padding: 10px 14px;
+  border: 1px solid #25313c;
+  background: linear-gradient(110deg, #0d1319, #0b1015 65%, color-mix(in srgb, var(--driver-color) 10%, #0b1015));
+  padding: 11px 15px;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .2);
 }
+
 .liveEventName {
   margin-top: 5px;
-  font-size: 17px;
-  font-weight: 900;
-  letter-spacing: .035em;
+  font-size: 18px;
+  font-weight: 950;
+  letter-spacing: .025em;
 }
+
 .liveSessionName {
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 3px;
   font-size: 10px;
-  letter-spacing: .08em;
+  letter-spacing: .1em;
   text-transform: uppercase;
 }
+
 .liveHeaderActions {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .liveConnection,
 .liveNavButton {
-  height: 30px;
+  height: 31px;
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  border: 1px solid var(--line);
-  background: #10161d;
+  border: 1px solid #2b3844;
+  background: rgba(16, 22, 29, .92);
   color: var(--muted);
-  padding: 0 9px;
+  padding: 0 10px;
   font-size: 9px;
   font-weight: 900;
-  letter-spacing: .08em;
+  letter-spacing: .09em;
   text-decoration: none;
 }
+
 .liveConnection i {
   width: 7px;
   height: 7px;
   border-radius: 999px;
   background: #777;
 }
+
 .liveConnection.connected { color: var(--text); }
 .liveConnection.connected i {
   background: #4dd17a;
-  box-shadow: 0 0 8px #4dd17a;
+  box-shadow: 0 0 9px #4dd17a;
 }
 .liveConnection.error i { background: #f05b5b; }
 .liveConnection.connecting i,
@@ -67,16 +78,73 @@
   flex-wrap: wrap;
   gap: 8px 18px;
   align-items: center;
-  min-height: 34px;
-  border: 1px solid var(--line);
+  min-height: 35px;
+  border: 1px solid #25313c;
   border-top: 0;
-  background: #0a0f14;
+  background: rgba(8, 13, 18, .96);
   padding: 6px 12px;
   font-size: 9px;
   letter-spacing: .07em;
   color: var(--muted);
 }
 .liveStatusStrip strong { color: var(--text); }
+.liveStatusStrip strong[data-status="2"] { color: #f3ce55; }
+.liveStatusStrip strong[data-status="4"] { color: #f3ce55; }
+.liveStatusStrip strong[data-status="5"] { color: #ff6464; }
+.liveStatusStrip strong[data-status="6"],
+.liveStatusStrip strong[data-status="7"] { color: #e8b95a; }
+
+.liveStatsRibbon {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.liveStatTile {
+  min-width: 0;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border: 1px solid #24313c;
+  background: linear-gradient(135deg, #0e151c, #0a0f14);
+  color: var(--text);
+  padding: 9px 11px;
+  font: inherit;
+  text-align: left;
+}
+.liveStatTile:not(:disabled) { cursor: pointer; }
+.liveStatTile:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--driver-color) 56%, #33414e);
+  background: #111a22;
+}
+.liveStatTile span {
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+.liveStatTile strong {
+  margin-top: 4px;
+  font-size: 17px;
+  letter-spacing: -.02em;
+}
+.liveStatTile small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 4px;
+  color: #9facb8;
+  font-size: 9px;
+}
+.liveStatTile small i {
+  width: 3px;
+  height: 12px;
+  display: inline-block;
+}
 
 .liveGrid {
   display: grid;
@@ -84,28 +152,45 @@
   gap: 10px;
   margin-top: 10px;
 }
-.liveTimingCard { grid-column: span 7; }
-.liveDriverCard { grid-column: span 5; }
-.liveTrackCard { grid-column: span 7; }
-.liveConditionsCard { grid-column: span 5; }
-.liveControlCard { grid-column: span 7; }
-.liveRadioCard { grid-column: span 5; }
+.liveTimingCard { grid-column: span 8; }
+.liveDriverCard { grid-column: span 4; }
+.liveTrackCard { grid-column: span 8; }
+.liveInsightsCard { grid-column: span 4; }
+.liveStrategyCard,
+.liveConditionsCard,
+.liveFeedsCard { grid-column: span 4; }
+.liveControlCard { grid-column: span 8; }
+.liveRadioCard { grid-column: span 4; }
 
 .liveCard {
   min-width: 0;
-  border: 1px solid var(--line);
-  background: #0d1218;
+  border: 1px solid #24313c;
+  background: linear-gradient(180deg, #0d1319, #0b1015);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .12);
 }
+
 .liveCardHeader {
-  min-height: 38px;
+  min-height: 41px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border-bottom: 1px solid var(--line);
-  padding: 5px 10px;
+  border-bottom: 1px solid #202b35;
+  padding: 6px 10px;
+  background: rgba(14, 20, 27, .82);
+}
+.liveCardHeaderSplit {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.liveCardHeaderSplit > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .liveCardHeader span {
-  color: var(--muted);
+  color: #778694;
   font-size: 8px;
   letter-spacing: .14em;
 }
@@ -115,20 +200,27 @@
   text-transform: uppercase;
   letter-spacing: .06em;
 }
+.liveCardHeader small {
+  color: #7e8d99;
+  font-size: 8px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
 
 .liveTimingTable { overflow: auto; }
 .liveTimingRow {
+  --row-color: #66737f;
   width: 100%;
-  min-width: 790px;
-  min-height: 32px;
+  min-width: 930px;
+  min-height: 33px;
   display: grid;
   grid-template-columns:
-    30px 74px minmax(72px, 1fr) minmax(62px, .8fr) 78px
-    70px 70px 70px 38px;
+    30px 78px minmax(68px, .9fr) minmax(65px, .85fr) 74px 74px
+    64px 64px 64px 40px 42px;
   align-items: center;
   gap: 5px;
   border: 0;
-  border-bottom: 1px solid #1a232d;
+  border-bottom: 1px solid #19232d;
   background: transparent;
   color: var(--text);
   padding: 0 8px;
@@ -137,25 +229,30 @@
   font-size: 10px;
 }
 button.liveTimingRow { cursor: pointer; }
-button.liveTimingRow:hover,
-button.liveTimingRow.selected { background: #141d26; }
+button.liveTimingRow:hover { background: #111a22; }
+button.liveTimingRow.selected {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--row-color) 18%, #111a22), #111a22 42%);
+  box-shadow: inset 3px 0 var(--row-color);
+}
 .liveTimingHead {
-  color: var(--muted);
+  color: #768593;
   font-size: 8px;
   font-weight: 900;
   letter-spacing: .08em;
 }
+.livePositionCell { font-weight: 950; }
 .liveDriverCell {
   display: flex;
   align-items: center;
   gap: 6px;
   font-weight: 900;
 }
-.liveDriverCell i {
-  width: 3px;
-  height: 18px;
+.liveDriverCell > i {
+  width: 4px;
+  height: 19px;
   display: inline-block;
   flex: 0 0 auto;
+  background: var(--row-color);
 }
 .liveDriverCell em {
   border: 1px solid #776a34;
@@ -165,8 +262,25 @@ button.liveTimingRow.selected { background: #141d26; }
   font-style: normal;
   letter-spacing: .06em;
 }
-.timingPurple { color: #d38cff; }
-.timingGreen { color: #59dc8a; }
+.liveCatching { color: #68df91; font-weight: 800; }
+.timingPurple { color: #db8fff; }
+.timingGreen { color: #63df90; }
+
+.liveTyreBadge {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  color: #a8b2bc;
+  font-size: 8px;
+}
+.liveTyreBadge.soft { color: #ff5f64; }
+.liveTyreBadge.medium { color: #f2cf4a; }
+.liveTyreBadge.hard { color: #e9edf0; }
+.liveTyreBadge.intermediate { color: #59d97a; }
+.liveTyreBadge.wet { color: #5da8ff; }
 
 .liveDriverHero {
   display: grid;
@@ -174,42 +288,77 @@ button.liveTimingRow.selected { background: #141d26; }
   align-items: center;
   gap: 10px;
   padding: 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid #202b35;
+  background: linear-gradient(100deg, color-mix(in srgb, var(--driver-color) 18%, #0d1319), #0d1319 62%);
 }
 .liveDriverHero h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 17px;
+  letter-spacing: -.02em;
 }
 .liveDriverHero p {
   margin: 3px 0 0;
-  color: var(--muted);
+  color: #8d9aa6;
   font-size: 9px;
 }
-.liveDriverHero > b { font-size: 22px; }
+.liveDriverHero > b { font-size: 24px; }
 .liveDriverNumber {
   width: 50px;
   height: 50px;
   display: grid;
   place-items: center;
-  border: 2px solid var(--line);
+  border: 2px solid var(--driver-color);
+  background: #090e13;
+  box-shadow: inset 0 -10px 22px color-mix(in srgb, var(--driver-color) 16%, transparent);
   font-size: 21px;
   font-weight: 950;
 }
 
+.liveTelemetryHero {
+  display: grid;
+  grid-template-columns: 1.35fr .7fr 1fr;
+  border-bottom: 1px solid #202b35;
+}
+.liveTelemetryHero > div {
+  min-height: 78px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-right: 1px solid #202b35;
+  padding: 9px 12px;
+}
+.liveTelemetryHero > div:last-child { border-right: 0; }
+.liveTelemetryHero span {
+  color: #748390;
+  font-size: 8px;
+  letter-spacing: .11em;
+}
+.liveTelemetryHero strong {
+  margin-top: 2px;
+  font-size: 28px;
+  line-height: 1;
+}
+.liveTelemetryHero small {
+  color: #798793;
+  font-size: 8px;
+}
+
 .liveMetrics,
-.liveSpeedTraps {
+.liveSpeedTraps,
+.liveStrategyStats {
   display: grid;
   grid-template-columns: repeat(4, minmax(70px, 1fr));
 }
+.liveDriverCard .liveMetrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .liveMetric {
   min-height: 56px;
-  border-right: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-right: 1px solid #202b35;
+  border-bottom: 1px solid #202b35;
   padding: 9px;
 }
 .liveMetric span {
   display: block;
-  color: var(--muted);
+  color: #778693;
   font-size: 8px;
   letter-spacing: .1em;
   text-transform: uppercase;
@@ -224,12 +373,12 @@ button.liveTimingRow.selected { background: #141d26; }
 .liveSectors {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid #1a232d;
+  border-top: 1px solid #19232d;
 }
 .liveSector {
   min-width: 0;
   padding: 9px;
-  border-right: 1px solid #1a232d;
+  border-right: 1px solid #19232d;
 }
 .liveSector:last-child { border-right: 0; }
 .liveSectorValue {
@@ -239,78 +388,101 @@ button.liveTimingRow.selected { background: #141d26; }
   gap: 8px;
 }
 .liveSectorValue span {
-  color: var(--muted);
+  color: #778693;
   font-size: 8px;
   letter-spacing: .1em;
 }
-.liveSectorValue strong {
-  font-size: 12px;
-}
-.liveSector.overall .liveSectorValue strong { color: #d38cff; }
-.liveSector.personal .liveSectorValue strong { color: #59dc8a; }
-.liveSector.complete .liveSectorValue strong { color: #e2c75e; }
+.liveSectorValue strong { font-size: 12px; }
+.liveSector.overall .liveSectorValue strong { color: #db8fff; }
+.liveSector.personal .liveSectorValue strong { color: #63df90; }
+.liveSector.complete .liveSectorValue strong { color: #d5be62; }
 
 .liveMiniSectors {
   display: flex;
   gap: 2px;
-  height: 5px;
+  height: 6px;
   margin-top: 8px;
 }
 .liveMiniSectors i {
   min-width: 3px;
   flex: 1 1 0;
-  background: #25303a;
+  background: #26323d;
 }
-.liveMiniSectors i.crossed {
-  background: #647381;
+.liveMiniSectors i[data-status="2049"] { background: #56d77d; }
+.liveMiniSectors i[data-status="2051"] { background: #bd64ed; }
+.liveMiniSectors i[data-status="2048"] { background: #d0d6dc; }
+.liveMiniSectors i[data-status="2064"] { background: #7d8994; }
+.liveMiniSectors i.empty { flex: 1; opacity: .45; }
+
+.liveDriverIdentity {
+  display: inline-grid;
+  grid-template-columns: 4px auto 1fr;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
 }
-.liveMiniSectors i.empty {
-  flex: 1;
-  opacity: .45;
+.liveDriverIdentity i {
+  width: 4px;
+  height: 20px;
+  display: block;
 }
+.liveDriverIdentity b { font-size: 10px; }
+.liveDriverIdentity small {
+  min-width: 0;
+  overflow: hidden;
+  color: #798793;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.liveDriverIdentity.compact { grid-template-columns: 3px auto; }
+.liveDriverIdentity.compact i { width: 3px; height: 15px; }
+.liveDriverIdentity.compact small { display: none; }
 
 .liveTrackWrap {
   position: relative;
-  min-height: 390px;
+  min-height: 410px;
   background:
-    radial-gradient(circle at center, rgba(30, 42, 54, .35), transparent 60%),
-    #090e13;
+    linear-gradient(rgba(255,255,255,.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.015) 1px, transparent 1px),
+    radial-gradient(circle at center, rgba(30, 42, 54, .42), transparent 62%),
+    #080d12;
+  background-size: 24px 24px, 24px 24px, auto, auto;
   overflow: hidden;
 }
 .liveTrackSvg {
   display: block;
   width: 100%;
-  height: 350px;
+  height: 370px;
 }
 .liveTrackTraceOuter {
   fill: none;
-  stroke: #28343f;
-  stroke-width: 13;
+  stroke: #25313b;
+  stroke-width: 14;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .liveTrackTrace {
   fill: none;
-  stroke: #71808d;
+  stroke: #73818d;
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px currentColor);
 }
-.liveTrackCar {
-  cursor: pointer;
-  outline: none;
-}
+.liveTrackCar { cursor: pointer; outline: none; }
 .liveTrackCar circle {
-  stroke: #0a0e12;
+  stroke: #090e12;
   stroke-width: 2;
 }
 .liveTrackCar.selected circle {
-  stroke: #f3f6f8;
+  stroke: #f7fafc;
   stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,.45));
 }
 .liveTrackCar text {
   fill: #aeb9c4;
-  font-size: 13px;
+  font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-weight: 900;
   paint-order: stroke;
@@ -328,34 +500,134 @@ button.liveTimingRow.selected { background: #141d26; }
   letter-spacing: .08em;
 }
 .liveTrackLegend {
-  min-height: 34px;
+  min-height: 38px;
   display: flex;
   justify-content: space-between;
   gap: 8px 16px;
   align-items: center;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid #202b35;
   padding: 7px 10px;
-  color: var(--muted);
+  color: #788794;
   font-size: 8px;
-  letter-spacing: .06em;
+  letter-spacing: .07em;
   text-transform: uppercase;
 }
+
+.liveInsightList {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+}
+.liveInsight {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #26323d;
+  background: #0b1117;
+  padding: 9px 10px 9px 13px;
+}
+.liveInsight::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: #596775;
+}
+.liveInsight.purple::before { background: #bd6fe8; }
+.liveInsight.green::before { background: #52d97b; }
+.liveInsight.yellow::before { background: #e1bd4d; }
+.liveInsight.blue::before { background: #5aa7e8; }
+.liveInsight span {
+  color: #758490;
+  font-size: 8px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.liveInsight strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+}
+.liveInsight p {
+  margin: 4px 0 0;
+  color: #9aa7b2;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.liveStrategyBody { min-height: 240px; }
+.liveStrategyDriver {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid #202b35;
+  padding: 8px 10px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--driver-color) 12%, #0d1319), #0d1319);
+}
+.liveStrategyDriver > span { font-size: 17px; font-weight: 950; }
+.liveStrategyStats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.liveEventMiniList { border-top: 1px solid #202b35; }
+.liveEventMiniList > div {
+  display: grid;
+  grid-template-columns: 45px 1fr;
+  gap: 8px;
+  border-bottom: 1px solid #1b252e;
+  padding: 7px 10px;
+  font-size: 9px;
+}
+.liveEventMiniList span { color: #8d9aa5; }
 
 .liveConditionsTitle {
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding: 11px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid #202b35;
+  background: #0b1117;
 }
-.liveConditionsTitle span {
-  color: var(--muted);
-  font-size: 9px;
+.liveConditionsTitle span { color: #7d8b97; font-size: 9px; }
+.liveConditionsCard .liveMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+.liveFeedGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-height: 298px;
+  overflow: auto;
+  padding: 7px;
+}
+.liveFeedGrid > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid #18222b;
+  color: #5f6d79;
+  padding: 5px 6px;
+  font-size: 8px;
+}
+.liveFeedGrid > div i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #303b45;
+}
+.liveFeedGrid > div span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.liveFeedGrid > div.active { color: #b4bec7; }
+.liveFeedGrid > div.active i {
+  background: #4fd17a;
+  box-shadow: 0 0 5px rgba(79, 209, 122, .5);
 }
 
 .liveRaceControl,
 .liveRadioList {
-  max-height: 390px;
+  max-height: 430px;
   overflow: auto;
 }
 .liveRaceMessage {
@@ -363,7 +635,11 @@ button.liveTimingRow.selected { background: #141d26; }
   grid-template-columns: auto 1fr;
   gap: 3px 8px;
   padding: 8px 10px;
-  border-bottom: 1px solid #1a232d;
+  border-bottom: 1px solid #1b252e;
+}
+.liveRaceMessage.selectedDriver {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--driver-color) 15%, transparent), transparent 48%);
+  box-shadow: inset 3px 0 var(--driver-color);
 }
 .liveRaceMessage > span {
   font-size: 8px;
@@ -371,7 +647,7 @@ button.liveTimingRow.selected { background: #141d26; }
   letter-spacing: .08em;
 }
 .liveRaceMessage small {
-  color: var(--muted);
+  color: #73818d;
   font-size: 8px;
   text-align: right;
 }
@@ -383,8 +659,13 @@ button.liveTimingRow.selected { background: #141d26; }
 }
 
 .liveRadioItem {
+  --row-color: #66737f;
   padding: 9px 10px;
-  border-bottom: 1px solid #1a232d;
+  border-bottom: 1px solid #1b252e;
+}
+.liveRadioItem.selectedDriver {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--row-color) 15%, transparent), transparent 55%);
+  box-shadow: inset 3px 0 var(--row-color);
 }
 .liveRadioMeta {
   display: flex;
@@ -392,17 +673,12 @@ button.liveTimingRow.selected { background: #141d26; }
   justify-content: space-between;
   gap: 8px;
 }
-.liveRadioMeta strong {
-  font-size: 10px;
-}
+.liveRadioMeta strong { font-size: 10px; }
 .liveRadioMeta span,
-.liveRadioItem small {
-  color: var(--muted);
-  font-size: 8px;
-}
+.liveRadioItem small { color: #768491; font-size: 8px; }
 .liveRadioItem p {
   margin: 7px 0;
-  color: #c6d0d9;
+  color: #c7d0d8;
   font-size: 9px;
   line-height: 1.35;
 }
@@ -414,32 +690,33 @@ button.liveTimingRow.selected { background: #141d26; }
 
 .liveEmpty {
   padding: 18px 12px;
-  color: var(--muted);
+  color: #74828e;
   font-size: 10px;
 }
 
-@media (max-width: 1150px) {
-  .liveGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+@media (max-width: 1250px) {
+  .liveGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .liveTimingCard,
   .liveTrackCard,
-  .liveControlCard {
-    grid-column: span 2;
-  }
+  .liveControlCard { grid-column: span 2; }
   .liveDriverCard,
+  .liveInsightsCard,
+  .liveStrategyCard,
   .liveConditionsCard,
-  .liveRadioCard {
-    grid-column: span 1;
-  }
-  .liveMetrics {
-    grid-template-columns: repeat(2, minmax(70px, 1fr));
-  }
+  .liveFeedsCard,
+  .liveRadioCard { grid-column: span 1; }
+  .liveStatsRibbon { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .liveDriverCard .liveMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 840px) {
   .liveShell { padding: 0; }
   .liveTopBar { border-left: 0; border-right: 0; }
+  .liveStatsRibbon {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+    margin: 6px;
+  }
   .liveGrid {
     grid-template-columns: 1fr;
     gap: 6px;
@@ -448,15 +725,15 @@ button.liveTimingRow.selected { background: #141d26; }
   .liveTimingCard,
   .liveDriverCard,
   .liveTrackCard,
+  .liveInsightsCard,
+  .liveStrategyCard,
   .liveConditionsCard,
+  .liveFeedsCard,
   .liveControlCard,
-  .liveRadioCard {
-    grid-column: 1;
-  }
+  .liveRadioCard { grid-column: 1; }
   .liveCard { border-left: 0; border-right: 0; }
-  .liveMetrics { grid-template-columns: repeat(2, 1fr); }
-  .liveTrackWrap { min-height: 320px; }
-  .liveTrackSvg { height: 280px; }
+  .liveTrackWrap { min-height: 330px; }
+  .liveTrackSvg { height: 290px; }
 }
 
 @media (max-width: 520px) {
@@ -466,6 +743,11 @@ button.liveTimingRow.selected { background: #141d26; }
     align-items: stretch;
   }
   .liveEventName { font-size: 14px; }
+  .liveStatsRibbon { grid-template-columns: 1fr 1fr; }
+  .liveStatTile { min-height: 64px; }
+  .liveStatTile strong { font-size: 14px; }
+  .liveTelemetryHero { grid-template-columns: 1.15fr .65fr 1fr; }
+  .liveTelemetryHero strong { font-size: 22px; }
   .liveSectors { grid-template-columns: 1fr; }
   .liveSector {
     border-right: 0;
@@ -475,4 +757,5 @@ button.liveTimingRow.selected { background: #141d26; }
     align-items: flex-start;
     flex-direction: column;
   }
+  .liveFeedGrid { grid-template-columns: 1fr; }
 }

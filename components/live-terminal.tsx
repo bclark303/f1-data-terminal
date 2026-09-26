@@ -1,34 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   LIVE_TOPICS,
   applyLiveRecord,
   liveFeedKey,
+  selectLiveChampionship,
   selectLiveClock,
+  selectLiveDriverEventCounts,
+  selectLiveDriverInsights,
   selectLiveDrivers,
+  selectLiveFeedCoverage,
   selectLiveFeedNames,
   selectLiveLapCount,
   selectLivePositions,
   selectLiveRaceControl,
   selectLiveSessionInfo,
+  selectLiveSessionStats,
   selectLiveSessionStatus,
   selectLiveTeamRadio,
   selectLiveTrackStatus,
   selectLiveWeather,
   teamRadioUrl,
   type LiveDriverRow,
+  type LiveInsight,
   type LivePosition,
   type LiveSector,
+  type LiveSessionStat,
   type LiveTimingStore,
 } from "@/lib/live-timing";
 
-type ConnectionState =
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "error";
+type ConnectionState = "connecting" | "connected" | "disconnected" | "error";
 
 type StatusPayload = {
   status?: ConnectionState;
@@ -38,13 +41,7 @@ type StatusPayload = {
 
 type Point = { x: number; y: number };
 
-function Metric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
+function Metric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="liveMetric">
       <span>{label}</span>
@@ -61,13 +58,14 @@ function driverLabel(driver: LiveDriverRow | undefined, number: string) {
   return driver?.tla || number;
 }
 
-function Sector({
-  index,
-  sector,
-}: {
-  index: number;
-  sector: LiveSector;
-}) {
+function tyreClass(compound: string) {
+  const normalized = compound.toLowerCase();
+  return ["soft", "medium", "hard", "intermediate", "wet"].includes(normalized)
+    ? normalized
+    : "unknown";
+}
+
+function Sector({ index, sector }: { index: number; sector: LiveSector }) {
   const className = sector.overallFastest
     ? "overall"
     : sector.personalFastest
@@ -86,7 +84,7 @@ function Sector({
           sector.segments.map((status, segmentIndex) => (
             <i
               key={segmentIndex}
-              className={status ? "crossed" : ""}
+              className="crossed"
               data-status={status}
               title={"F1 segment status " + status}
             />
@@ -96,6 +94,16 @@ function Sector({
         )}
       </div>
     </div>
+  );
+}
+
+function DriverIdentity({ driver, compact = false }: { driver: LiveDriverRow; compact?: boolean }) {
+  return (
+    <span className={"liveDriverIdentity " + (compact ? "compact" : "")}>
+      <i style={{ background: "#" + driver.teamColour }} />
+      <b>{driver.tla || driver.number}</b>
+      {!compact && <small>{driver.team}</small>}
+    </span>
   );
 }
 
@@ -113,13 +121,8 @@ function LiveTrackMap({
   onSelect: (number: string) => void;
 }) {
   const projection = useMemo(() => {
-    const selectedHistory = selectedNumber
-      ? histories[selectedNumber] ?? []
-      : [];
-    const reference =
-      selectedHistory.length >= 20
-        ? selectedHistory
-        : Object.values(histories).flat();
+    const selectedHistory = selectedNumber ? histories[selectedNumber] ?? [] : [];
+    const reference = selectedHistory.length >= 20 ? selectedHistory : Object.values(histories).flat();
     const source = reference.length ? reference : positions;
     if (!source.length) return null;
 
@@ -150,6 +153,7 @@ function LiveTrackMap({
     () => new Map(drivers.map((driver) => [driver.number, driver])),
     [drivers],
   );
+  const selectedDriver = selectedNumber ? driverByNumber.get(selectedNumber) : undefined;
 
   const selectedPath =
     projection?.selectedHistory
@@ -161,16 +165,15 @@ function LiveTrackMap({
 
   return (
     <div className="liveTrackWrap">
-      <svg
-        className="liveTrackSvg"
-        viewBox="0 0 1000 460"
-        role="img"
-        aria-label="Live car positions"
-      >
+      <svg className="liveTrackSvg" viewBox="0 0 1000 460" role="img" aria-label="Live car positions">
         {selectedPath && (
           <>
             <polyline className="liveTrackTraceOuter" points={selectedPath} />
-            <polyline className="liveTrackTrace" points={selectedPath} />
+            <polyline
+              className="liveTrackTrace"
+              points={selectedPath}
+              style={selectedDriver ? { stroke: "#" + selectedDriver.teamColour } : undefined}
+            />
           </>
         )}
         {projection &&
@@ -187,50 +190,83 @@ function LiveTrackMap({
                 role="button"
                 tabIndex={0}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ")
-                    onSelect(position.number);
+                  if (event.key === "Enter" || event.key === " ") onSelect(position.number);
                 }}
               >
-                <circle
-                  r={selected ? 9 : 6}
-                  style={{
-                    fill: "#" + (driver?.teamColour || "8b98a5"),
-                  }}
-                />
-                <text x="11" y="4">
+                <circle r={selected ? 10 : 6} style={{ fill: "#" + (driver?.teamColour || "8b98a5") }} />
+                <text x="12" y="4">
+                  {driver?.position && driver.position !== "—" ? "P" + driver.position + " " : ""}
                   {driverLabel(driver, position.number)}
                 </text>
               </g>
             );
           })}
       </svg>
-      {!positions.length && (
-        <div className="liveTrackWaiting">
-          Waiting for Position.z…
-        </div>
-      )}
+      {!positions.length && <div className="liveTrackWaiting">Waiting for Position.z…</div>}
       <div className="liveTrackLegend">
-        <span>
-          {positions.length
-            ? positions.length + " cars · ~220 ms position feed"
-            : "position feed unavailable"}
-        </span>
-        <span>trace builds from received XY samples</span>
+        <span>{positions.length ? positions.length + " cars · ~220 ms position feed" : "position feed unavailable"}</span>
+        <span>{selectedDriver ? "trace · " + (selectedDriver.tla || selectedDriver.number) : "select a driver to follow"}</span>
       </div>
     </div>
   );
 }
 
+function InsightCard({ insight }: { insight: LiveInsight }) {
+  return (
+    <div className={"liveInsight " + insight.tone}>
+      <span>{insight.title}</span>
+      <strong>{insight.value}</strong>
+      <p>{insight.detail}</p>
+    </div>
+  );
+}
+
+function SessionStats({
+  stats,
+  drivers,
+  onSelect,
+}: {
+  stats: LiveSessionStat[];
+  drivers: LiveDriverRow[];
+  onSelect: (number: string) => void;
+}) {
+  const driverByNumber = useMemo(
+    () => new Map(drivers.map((driver) => [driver.number, driver])),
+    [drivers],
+  );
+  if (!stats.length) return null;
+  return (
+    <section className="liveStatsRibbon" aria-label="Live session statistics">
+      {stats.map((stat) => {
+        const driver = stat.number ? driverByNumber.get(stat.number) : undefined;
+        return (
+          <button
+            type="button"
+            key={stat.label}
+            className="liveStatTile"
+            onClick={() => stat.number && onSelect(stat.number)}
+            disabled={!stat.number}
+          >
+            <span>{stat.label}</span>
+            <strong>{stat.value}</strong>
+            <small>
+              {driver && <i style={{ background: "#" + driver.teamColour }} />}
+              {stat.detail}
+            </small>
+          </button>
+        );
+      })}
+    </section>
+  );
+}
+
 export function LiveTerminal() {
   const [store, setStore] = useState<LiveTimingStore>({});
-  const [connection, setConnection] =
-    useState<ConnectionState>("connecting");
+  const [connection, setConnection] = useState<ConnectionState>("connecting");
   const [connectionMessage, setConnectionMessage] = useState("");
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
-  const [positionHistory, setPositionHistory] = useState<
-    Record<string, Point[]>
-  >({});
+  const [positionHistory, setPositionHistory] = useState<Record<string, Point[]>>({});
 
   useEffect(() => {
     const source = new EventSource("/api/live-timing");
@@ -249,11 +285,7 @@ export function LiveTerminal() {
 
     const onRecord = (event: MessageEvent<string>) => {
       try {
-        const record = JSON.parse(event.data) as {
-          feed?: string;
-          data?: unknown;
-          at?: number;
-        };
+        const record = JSON.parse(event.data) as { feed?: string; data?: unknown; at?: number };
         if (!record.feed) return;
         if (liveFeedKey(record.feed) === "Position") {
           const samples = selectLivePositions({ Position: record.data });
@@ -263,26 +295,16 @@ export function LiveTerminal() {
               for (const sample of samples) {
                 const history = [...(current[sample.number] ?? [])];
                 const previous = history.at(-1);
-                if (
-                  previous &&
-                  Math.hypot(
-                    sample.x - previous.x,
-                    sample.y - previous.y,
-                  ) < 8
-                )
-                  continue;
+                if (previous && Math.hypot(sample.x - previous.x, sample.y - previous.y) < 8) continue;
                 history.push({ x: sample.x, y: sample.y });
-                if (history.length > 2500)
-                  history.splice(0, history.length - 2500);
+                if (history.length > 2500) history.splice(0, history.length - 2500);
                 next[sample.number] = history;
               }
               return next;
             });
           }
         }
-        setStore((current) =>
-          applyLiveRecord(current, record.feed as string, record.data),
-        );
+        setStore((current) => applyLiveRecord(current, record.feed as string, record.data));
         setConnection("connected");
         setConnectionMessage("");
         setLastUpdate(record.at ?? Date.now());
@@ -294,9 +316,7 @@ export function LiveTerminal() {
     source.addEventListener("status", onStatus as EventListener);
     source.addEventListener("record", onRecord as EventListener);
     source.onerror = () => {
-      setConnection((current) =>
-        current === "error" ? "error" : "disconnected",
-      );
+      setConnection((current) => (current === "error" ? "error" : "disconnected"));
     };
 
     return () => source.close();
@@ -313,30 +333,57 @@ export function LiveTerminal() {
   const sessionStatus = useMemo(() => selectLiveSessionStatus(store), [store]);
   const sessionClock = useMemo(() => selectLiveClock(store), [store]);
   const feedNames = useMemo(() => selectLiveFeedNames(store), [store]);
+  const feedCoverage = useMemo(() => selectLiveFeedCoverage(store), [store]);
+  const sessionStats = useMemo(() => selectLiveSessionStats(drivers), [drivers]);
+  const championship = useMemo(() => selectLiveChampionship(store), [store]);
 
   const selected =
-    drivers.find((driver) => driver.number === selectedNumber) ??
-    drivers[0] ??
-    null;
+    drivers.find((driver) => driver.number === selectedNumber) ?? drivers[0] ?? null;
 
   const driverByNumber = useMemo(
     () => new Map(drivers.map((driver) => [driver.number, driver])),
     [drivers],
   );
+  const insights = useMemo(
+    () => selectLiveDriverInsights(store, drivers, selected),
+    [store, drivers, selected],
+  );
+  const selectedEvents = useMemo(
+    () => (selected ? selectLiveDriverEventCounts(store, selected.number) : null),
+    [store, selected],
+  );
+  const selectedChampionship = selected
+    ? championship.find((row) => row.number === selected.number)
+    : null;
+  const selectedRadio = useMemo(() => {
+    if (!selected) return radio;
+    return [...radio].sort((a, b) => Number(b.number === selected.number) - Number(a.number === selected.number));
+  }, [radio, selected]);
+
+  const selectedMentions = selected
+    ? raceControl.filter((item) => {
+        const text = item.message.toUpperCase();
+        return (
+          text.includes("CAR " + selected.number) ||
+          (selected.tla && text.includes(selected.tla.toUpperCase())) ||
+          (selected.name && text.includes(selected.name.toUpperCase()))
+        );
+      }).length
+    : 0;
+
+  const driverStyle = selected
+    ? ({ "--driver-color": "#" + selected.teamColour } as CSSProperties)
+    : undefined;
 
   return (
-    <main className="liveShell">
+    <main className="liveShell" style={driverStyle}>
       <header className="liveTopBar">
         <div>
           <div className="brand">
             F1 DATA TERMINAL <span>LIVE</span>
           </div>
-          <div className="liveEventName">
-            {session?.meeting || "Formula 1 Live Timing"}
-          </div>
-          <div className="liveSessionName">
-            {session?.session || "Waiting for active session"}
-          </div>
+          <div className="liveEventName">{session?.meeting || "Formula 1 Live Timing"}</div>
+          <div className="liveSessionName">{session?.session || "Waiting for active session"}</div>
         </div>
 
         <div className="liveHeaderActions">
@@ -351,7 +398,7 @@ export function LiveTerminal() {
       </header>
 
       <div className="liveStatusStrip">
-        <strong>{trackStatus?.label ?? "WAITING FOR TRACK STATUS"}</strong>
+        <strong data-status={trackStatus?.status ?? ""}>{trackStatus?.label ?? "WAITING FOR TRACK STATUS"}</strong>
         <span>{sessionStatus || "SESSION STATUS —"}</span>
         <span>
           LAP {lapCount?.current ?? "—"} / {lapCount?.total ?? "—"}
@@ -363,26 +410,25 @@ export function LiveTerminal() {
         <span>
           FEEDS {feedNames.length}/{LIVE_TOPICS.length}
         </span>
-        <span>
-          {lastUpdate
-            ? new Date(lastUpdate).toLocaleTimeString()
-            : "NO DATA YET"}
-        </span>
+        <span>{lastUpdate ? new Date(lastUpdate).toLocaleTimeString() : "NO DATA YET"}</span>
       </div>
 
       {connection === "error" && (
         <div className="dataError" role="alert">
-          Live timing unavailable
-          {connectionMessage ? ": " + connectionMessage : "."} The browser
-          will retry automatically.
+          Live timing unavailable{connectionMessage ? ": " + connectionMessage : "."} The browser will retry automatically.
         </div>
       )}
 
+      <SessionStats stats={sessionStats} drivers={drivers} onSelect={setSelectedNumber} />
+
       <section className="liveGrid">
         <article className="liveCard liveTimingCard">
-          <div className="liveCardHeader">
-            <span>FIELD</span>
-            <strong>Timing / Classification</strong>
+          <div className="liveCardHeader liveCardHeaderSplit">
+            <div>
+              <span>FIELD</span>
+              <strong>Timing / Classification</strong>
+            </div>
+            <small>{drivers.length ? drivers.length + " cars" : "waiting"}</small>
           </div>
           <div className="liveTimingTable">
             <div className="liveTimingRow liveTimingHead">
@@ -391,116 +437,101 @@ export function LiveTerminal() {
               <span>GAP</span>
               <span>INT</span>
               <span>LAST</span>
+              <span>BEST</span>
               <span>S1</span>
               <span>S2</span>
               <span>S3</span>
               <span>TYRE</span>
+              <span>AGE</span>
             </div>
             {drivers.map((driver) => (
               <button
                 key={driver.number}
-                className={
-                  "liveTimingRow " +
-                  (selected?.number === driver.number ? "selected" : "")
-                }
+                className={"liveTimingRow " + (selected?.number === driver.number ? "selected" : "")}
                 onClick={() => setSelectedNumber(driver.number)}
+                style={{ "--row-color": "#" + driver.teamColour } as CSSProperties}
               >
-                <span>{valueOrDash(driver.position)}</span>
+                <span className="livePositionCell">{valueOrDash(driver.position)}</span>
                 <span className="liveDriverCell">
-                  <i style={{ background: "#" + driver.teamColour }} />
-                  {driver.tla || driver.number}
+                  <i />
+                  <b>{driver.tla || driver.number}</b>
                   {driver.inPit && <em>PIT</em>}
+                  {driver.pitOut && <em>OUT</em>}
                 </span>
-                <span>
-                  {driver.position === "1"
-                    ? "LEADER"
-                    : valueOrDash(driver.gap)}
+                <span>{driver.position === "1" ? "LEADER" : valueOrDash(driver.gap)}</span>
+                <span className={driver.catching ? "liveCatching" : ""}>
+                  {driver.catching ? "▲ " : ""}
+                  {valueOrDash(driver.interval)}
                 </span>
-                <span>{valueOrDash(driver.interval)}</span>
-                <span>{valueOrDash(driver.lastLap)}</span>
+                <span className={driver.lastLapOverallFastest ? "timingPurple" : driver.lastLapPersonalFastest ? "timingGreen" : ""}>
+                  {valueOrDash(driver.lastLap)}
+                </span>
+                <span>{valueOrDash(driver.bestLap)}</span>
                 {driver.sectors.map((sector, index) => (
                   <span
                     key={index}
-                    className={
-                      sector.overallFastest
-                        ? "timingPurple"
-                        : sector.personalFastest
-                          ? "timingGreen"
-                          : ""
-                    }
+                    className={sector.overallFastest ? "timingPurple" : sector.personalFastest ? "timingGreen" : ""}
                   >
                     {valueOrDash(sector.value)}
                   </span>
                 ))}
-                <span>{driver.tyre ? driver.tyre.slice(0, 1) : "—"}</span>
+                <span>
+                  {driver.tyre ? <b className={"liveTyreBadge " + tyreClass(driver.tyre)}>{driver.tyre.slice(0, 1)}</b> : "—"}
+                </span>
+                <span>{driver.stintLaps == null ? "—" : driver.stintLaps + "L"}</span>
               </button>
             ))}
-            {!drivers.length && (
-              <div className="liveEmpty">
-                Waiting for Formula 1 timing data…
-              </div>
-            )}
+            {!drivers.length && <div className="liveEmpty">Waiting for Formula 1 timing data…</div>}
           </div>
         </article>
 
         <article className="liveCard liveDriverCard">
           <div className="liveCardHeader">
-            <span>FOCUS + TELEMETRY</span>
-            <strong>Driver / Car</strong>
+            <span>FOCUS</span>
+            <strong>Driver / Car / Strategy</strong>
           </div>
           {selected ? (
             <>
               <div className="liveDriverHero">
-                <div
-                  className="liveDriverNumber"
-                  style={{ borderColor: "#" + selected.teamColour }}
-                >
-                  {selected.number}
-                </div>
+                <div className="liveDriverNumber">{selected.number}</div>
                 <div>
                   <h2>{selected.name || selected.tla}</h2>
                   <p>
                     {selected.team || "Formula 1"}
+                    {selected.countryCode ? " · " + selected.countryCode : ""}
                     {selected.inPit
                       ? " · IN PIT"
                       : selected.retired
                         ? " · RETIRED"
                         : selected.stopped
                           ? " · STOPPED"
-                          : ""}
+                          : selected.knockedOut
+                            ? " · OUT"
+                            : ""}
                   </p>
                 </div>
                 <b>P{valueOrDash(selected.position)}</b>
               </div>
 
+              <div className="liveTelemetryHero">
+                <div>
+                  <span>SPEED</span>
+                  <strong>{selected.speed == null ? "—" : selected.speed + " km/h"}</strong>
+                  <small>live</small>
+                </div>
+                <div>
+                  <span>GEAR</span>
+                  <strong>{selected.gear ?? "—"}</strong>
+                </div>
+                <div>
+                  <span>THROTTLE</span>
+                  <strong>{selected.throttle == null ? "—" : Math.round(selected.throttle) + "%"}</strong>
+                </div>
+              </div>
+
               <div className="liveMetrics">
-                <Metric
-                  label="Speed"
-                  value={selected.speed == null ? "—" : selected.speed + " km/h"}
-                />
-                <Metric label="Gear" value={selected.gear ?? "—"} />
-                <Metric
-                  label="RPM"
-                  value={selected.rpm?.toLocaleString() ?? "—"}
-                />
-                <Metric
-                  label="Throttle"
-                  value={
-                    selected.throttle == null
-                      ? "—"
-                      : Math.round(selected.throttle) + "%"
-                  }
-                />
-                <Metric
-                  label="Brake"
-                  value={
-                    selected.brake == null
-                      ? "—"
-                      : selected.brake
-                        ? "ON"
-                        : "OFF"
-                  }
-                />
+                <Metric label="RPM" value={selected.rpm?.toLocaleString() ?? "—"} />
+                <Metric label="Brake" value={selected.brake == null ? "—" : selected.brake ? "ON" : "OFF"} />
                 <Metric label="Aero ch45" value={selected.aero ?? "—"} />
                 <Metric label="Best Lap" value={selected.bestLap || "—"} />
                 <Metric
@@ -508,34 +539,13 @@ export function LiveTerminal() {
                   value={
                     selected.tyre
                       ? selected.tyre +
-                        (selected.tyreNew == null
-                          ? ""
-                          : selected.tyreNew
-                            ? " · NEW"
-                            : " · USED")
+                        (selected.tyreNew == null ? "" : selected.tyreNew ? " · NEW" : " · USED")
                       : "—"
                   }
                 />
-                <Metric
-                  label="Tyre Laps"
-                  value={selected.stintLaps ?? "—"}
-                />
-                <Metric
-                  label="Driver Lap"
-                  value={selected.currentLap ?? "—"}
-                />
-                <Metric
-                  label="Pit Stops"
-                  value={selected.pitStops ?? "—"}
-                />
-                <Metric
-                  label="Speed Trap"
-                  value={
-                    selected.speeds.straight
-                      ? selected.speeds.straight + " km/h"
-                      : "—"
-                  }
-                />
+                <Metric label="Stint" value={selected.stintNumber ?? "—"} />
+                <Metric label="Tyre Laps" value={selected.stintLaps ?? "—"} />
+                <Metric label="Pit Stops" value={selected.pitStops ?? selectedEvents?.pitStops.length ?? "—"} />
               </div>
 
               <div className="liveSectors">
@@ -545,22 +555,10 @@ export function LiveTerminal() {
               </div>
 
               <div className="liveSpeedTraps">
-                <Metric
-                  label="I1"
-                  value={selected.speeds.i1 || "—"}
-                />
-                <Metric
-                  label="I2"
-                  value={selected.speeds.i2 || "—"}
-                />
-                <Metric
-                  label="Finish"
-                  value={selected.speeds.finish || "—"}
-                />
-                <Metric
-                  label="ST"
-                  value={selected.speeds.straight || "—"}
-                />
+                <Metric label="I1" value={selected.speeds.i1 ? selected.speeds.i1 + " km/h" : "—"} />
+                <Metric label="I2" value={selected.speeds.i2 ? selected.speeds.i2 + " km/h" : "—"} />
+                <Metric label="Finish" value={selected.speeds.finish ? selected.speeds.finish + " km/h" : "—"} />
+                <Metric label="ST" value={selected.speeds.straight ? selected.speeds.straight + " km/h" : "—"} />
               </div>
             </>
           ) : (
@@ -569,9 +567,12 @@ export function LiveTerminal() {
         </article>
 
         <article className="liveCard liveTrackCard">
-          <div className="liveCardHeader">
-            <span>POSITION.Z</span>
-            <strong>Live Track / XY Position</strong>
+          <div className="liveCardHeader liveCardHeaderSplit">
+            <div>
+              <span>POSITION.Z</span>
+              <strong>Live Track / XY Position</strong>
+            </div>
+            {selected && <DriverIdentity driver={selected} compact />}
           </div>
           <LiveTrackMap
             positions={positions}
@@ -582,6 +583,66 @@ export function LiveTerminal() {
           />
         </article>
 
+        <article className="liveCard liveInsightsCard">
+          <div className="liveCardHeader">
+            <span>DERIVED · FACTUAL</span>
+            <strong>Race Story</strong>
+          </div>
+          <div className="liveInsightList">
+            {insights.map((insight, index) => (
+              <InsightCard key={insight.title + index} insight={insight} />
+            ))}
+            {!insights.length && <div className="liveEmpty">Waiting for enough timing data to build driver context…</div>}
+          </div>
+        </article>
+
+        <article className="liveCard liveStrategyCard">
+          <div className="liveCardHeader">
+            <span>DRIVER EVENTS</span>
+            <strong>Strategy / Activity</strong>
+          </div>
+          {selected ? (
+            <div className="liveStrategyBody">
+              <div className="liveStrategyDriver">
+                <DriverIdentity driver={selected} />
+                <span>P{valueOrDash(selected.position)}</span>
+              </div>
+              <div className="liveStrategyStats">
+                <Metric label="Pit stops" value={selectedEvents?.pitStops.length ?? selected.pitStops ?? "—"} />
+                <Metric label="Overtakes" value={selectedEvents?.overtakesMade ?? "—"} />
+                <Metric label="Lost to passes" value={selectedEvents?.overtakenBy ?? "—"} />
+                <Metric label="Radio clips" value={selectedEvents?.radio.length ?? 0} />
+                <Metric label="RC mentions" value={selectedMentions} />
+                <Metric
+                  label="Projected WDC"
+                  value={
+                    selectedChampionship?.projectedPosition == null
+                      ? "—"
+                      : "P" + selectedChampionship.projectedPosition
+                  }
+                />
+                <Metric
+                  label="Projected pts"
+                  value={selectedChampionship?.projectedPoints ?? "—"}
+                />
+                <Metric label="Current lap" value={selected.currentLap ?? "—"} />
+              </div>
+              {!!selectedEvents?.pitStops.length && (
+                <div className="liveEventMiniList">
+                  {selectedEvents.pitStops.slice(0, 4).map((stop, index) => (
+                    <div key={[stop.number, stop.lap, stop.duration, index].join("-")}>
+                      <strong>{stop.lap == null ? "PIT" : "L" + stop.lap}</strong>
+                      <span>{stop.duration || stop.pitLaneTime || "pit event"}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="liveEmpty">Select a driver.</div>
+          )}
+        </article>
+
         <article className="liveCard liveConditionsCard">
           <div className="liveCardHeader">
             <span>CONDITIONS</span>
@@ -589,45 +650,35 @@ export function LiveTerminal() {
           </div>
           <div className="liveConditionsTitle">
             <strong>{trackStatus?.label ?? "—"}</strong>
-            <span>
-              {[session?.location, session?.country].filter(Boolean).join(", ")}
-            </span>
+            <span>{[session?.location, session?.country].filter(Boolean).join(", ")}</span>
           </div>
           <div className="liveMetrics">
-            <Metric
-              label="Air"
-              value={weather?.airTemp ? weather.airTemp + "°C" : "—"}
-            />
-            <Metric
-              label="Track"
-              value={weather?.trackTemp ? weather.trackTemp + "°C" : "—"}
-            />
-            <Metric
-              label="Humidity"
-              value={weather?.humidity ? weather.humidity + "%" : "—"}
-            />
-            <Metric
-              label="Wind"
-              value={
-                weather?.windSpeed ? weather.windSpeed + " m/s" : "—"
-              }
-            />
-            <Metric
-              label="Wind Dir"
-              value={weather?.windDirection ? weather.windDirection + "°" : "—"}
-            />
-            <Metric
-              label="Rain"
-              value={weather ? (weather.rainfall ? "YES" : "NO") : "—"}
-            />
-            <Metric
-              label="Pressure"
-              value={weather?.pressure ? weather.pressure + " hPa" : "—"}
-            />
-            <Metric
-              label="Session Clock"
-              value={sessionClock?.remaining || "—"}
-            />
+            <Metric label="Air" value={weather?.airTemp ? weather.airTemp + "°C" : "—"} />
+            <Metric label="Track" value={weather?.trackTemp ? weather.trackTemp + "°C" : "—"} />
+            <Metric label="Humidity" value={weather?.humidity ? weather.humidity + "%" : "—"} />
+            <Metric label="Wind" value={weather?.windSpeed ? weather.windSpeed + " m/s" : "—"} />
+            <Metric label="Wind Dir" value={weather?.windDirection ? weather.windDirection + "°" : "—"} />
+            <Metric label="Rain" value={weather ? (weather.rainfall ? "YES" : "NO") : "—"} />
+            <Metric label="Pressure" value={weather?.pressure ? weather.pressure + " hPa" : "—"} />
+            <Metric label="Session Clock" value={sessionClock?.remaining || "—"} />
+          </div>
+        </article>
+
+        <article className="liveCard liveFeedsCard">
+          <div className="liveCardHeader liveCardHeaderSplit">
+            <div>
+              <span>DATA BUS</span>
+              <strong>Feed Coverage</strong>
+            </div>
+            <small>{feedNames.length} active</small>
+          </div>
+          <div className="liveFeedGrid">
+            {feedCoverage.map((feed) => (
+              <div key={feed.feed} className={feed.active ? "active" : ""} title={feed.active ? "Data received" : "No data received in this session"}>
+                <i />
+                <span>{feed.feed}</span>
+              </div>
+            ))}
           </div>
         </article>
 
@@ -637,49 +688,54 @@ export function LiveTerminal() {
             <strong>Race Control</strong>
           </div>
           <div className="liveRaceControl">
-            {raceControl.slice(0, 24).map((item, index) => (
-              <div
-                className="liveRaceMessage"
-                key={item.utc + "-" + index}
-              >
-                <span>{item.flag || item.category || "INFO"}</span>
-                <small>
-                  {item.lap != null ? "L" + item.lap : ""}
-                  {item.utc
-                    ? " · " +
-                      new Date(item.utc).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })
-                    : ""}
-                </small>
-                <p>{item.message}</p>
-              </div>
-            ))}
-            {!raceControl.length && (
-              <div className="liveEmpty">
-                Waiting for race control messages…
-              </div>
-            )}
+            {raceControl.slice(0, 30).map((item, index) => {
+              const selectedMention =
+                !!selected &&
+                (item.message.toUpperCase().includes("CAR " + selected.number) ||
+                  (!!selected.tla && item.message.toUpperCase().includes(selected.tla.toUpperCase())));
+              return (
+                <div className={"liveRaceMessage " + (selectedMention ? "selectedDriver" : "")} key={item.utc + "-" + index}>
+                  <span>{item.flag || item.category || "INFO"}</span>
+                  <small>
+                    {item.lap != null ? "L" + item.lap : ""}
+                    {item.utc
+                      ? " · " +
+                        new Date(item.utc).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })
+                      : ""}
+                  </small>
+                  <p>{item.message}</p>
+                </div>
+              );
+            })}
+            {!raceControl.length && <div className="liveEmpty">Waiting for race control messages…</div>}
           </div>
         </article>
 
         <article className="liveCard liveRadioCard">
-          <div className="liveCardHeader">
-            <span>TEAM RADIO</span>
-            <strong>Latest Captures</strong>
+          <div className="liveCardHeader liveCardHeaderSplit">
+            <div>
+              <span>TEAM RADIO</span>
+              <strong>Latest Captures</strong>
+            </div>
+            {selected && <small>{selectedEvents?.radio.length ?? 0} for {selected.tla}</small>}
           </div>
           <div className="liveRadioList">
-            {radio.slice(0, 12).map((clip, index) => {
+            {selectedRadio.slice(0, 14).map((clip, index) => {
               const driver = driverByNumber.get(clip.number);
               const url = teamRadioUrl(session, clip);
+              const isSelected = clip.number === selected?.number;
               return (
-                <div className="liveRadioItem" key={clip.utc + "-" + index}>
+                <div
+                  className={"liveRadioItem " + (isSelected ? "selectedDriver" : "")}
+                  key={clip.utc + "-" + index}
+                  style={driver ? ({ "--row-color": "#" + driver.teamColour } as CSSProperties) : undefined}
+                >
                   <div className="liveRadioMeta">
-                    <strong>
-                      {driverLabel(driver, clip.number)}
-                    </strong>
+                    <strong>{driver ? <DriverIdentity driver={driver} compact /> : driverLabel(driver, clip.number)}</strong>
                     <span>
                       {clip.utc
                         ? new Date(clip.utc).toLocaleTimeString([], {
@@ -701,11 +757,7 @@ export function LiveTerminal() {
                 </div>
               );
             })}
-            {!radio.length && (
-              <div className="liveEmpty">
-                Waiting for TeamRadio…
-              </div>
-            )}
+            {!radio.length && <div className="liveEmpty">Waiting for TeamRadio…</div>}
           </div>
         </article>
       </section>
