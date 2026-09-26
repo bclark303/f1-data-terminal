@@ -4,6 +4,8 @@ import {
   applyLiveRecord,
   recordsFromSignalRFrames,
   selectLiveClock,
+  selectLiveCommentary,
+  selectLiveDriverFeedFacts,
   selectLiveDrivers,
   selectLiveLapCount,
   selectLivePositions,
@@ -256,5 +258,90 @@ test("position, clock and team radio selectors expose additional live feeds", ()
   assert.equal(
     teamRadioUrl(session, radio[0]),
     "https://livetiming.formula1.com/static/2026/2026-09-20_Spanish_Grand_Prix/2026-09-20_Race/TeamRadio/NOR_4.mp3",
+  );
+});
+
+
+test("commentary and optional-feed facts connect live context to drivers", () => {
+  let store: LiveTimingStore = {};
+  store = applyLiveRecord(store, "DriverList", {
+    "1": {
+      Tla: "VER",
+      BroadcastName: "M VERSTAPPEN",
+      TeamName: "Red Bull Racing",
+      TeamColour: "3671C6",
+      Line: 1,
+    },
+    "4": {
+      Tla: "NOR",
+      BroadcastName: "L NORRIS",
+      TeamName: "McLaren",
+      TeamColour: "FF8000",
+      Line: 2,
+    },
+  });
+  store = applyLiveRecord(store, "TimingData", {
+    Lines: {
+      "1": {
+        Line: 1,
+        Position: "1",
+        BestLapTime: { Value: "1:20.000" },
+        IntervalToPositionAhead: { Value: "" },
+      },
+      "4": {
+        Line: 2,
+        Position: "2",
+        BestLapTime: { Value: "1:20.400" },
+        IntervalToPositionAhead: { Value: "0.650", Catching: true },
+      },
+    },
+  });
+  store = applyLiveRecord(store, "LapSeries", {
+    LapPosition: {
+      "1": [1, 1, 1],
+      "4": [6, 4, 2],
+    },
+  });
+  store = applyLiveRecord(store, "OvertakeSeries", {
+    Events: {
+      "0": {
+        Lap: 8,
+        OvertakingRacingNumber: "4",
+        OvertakenRacingNumber: "1",
+      },
+    },
+  });
+  store = applyLiveRecord(store, "TimingStats", {
+    Lines: {
+      "4": {
+        RacingNumber: "4",
+        PersonalBestLapTime: { Value: "1:20.400", Position: "2" },
+        BestSpeeds: { ST: { Value: "331" } },
+      },
+    },
+  });
+
+  const drivers = selectLiveDrivers(store);
+  const commentary = selectLiveCommentary(store, drivers);
+  assert.ok(commentary.some((item) => item.kicker === "SUB-SECOND BATTLE"));
+  assert.ok(commentary.some((item) => item.kicker === "BIGGEST GAIN"));
+  assert.ok(commentary.some((item) => item.headline.includes("NOR passed VER")));
+
+  const facts = selectLiveDriverFeedFacts(store, "4");
+  assert.ok(
+    facts.some(
+      (fact) =>
+        fact.feed === "TimingStats" &&
+        fact.label.includes("PersonalBestLapTime") &&
+        fact.value === "1:20.400",
+    ),
+  );
+  assert.ok(
+    facts.some(
+      (fact) =>
+        fact.feed === "TimingStats" &&
+        fact.label.includes("BestSpeeds") &&
+        fact.value === "331",
+    ),
   );
 });
