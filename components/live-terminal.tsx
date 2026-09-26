@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   LIVE_TOPICS,
   applyLiveRecord,
   liveFeedKey,
   selectLiveChampionship,
   selectLiveClock,
+  selectLiveCommentary,
   selectLiveDriverEventCounts,
+  selectLiveDriverFeedFacts,
   selectLiveDriverInsights,
   selectLiveDrivers,
   selectLiveFeedCoverage,
@@ -23,6 +25,8 @@ import {
   selectLiveTrackStatus,
   selectLiveWeather,
   teamRadioUrl,
+  type LiveCommentaryItem,
+  type LiveDriverFeedFact,
   type LiveDriverRow,
   type LiveInsight,
   type LivePosition,
@@ -37,6 +41,13 @@ type StatusPayload = {
   status?: ConnectionState;
   message?: string;
   at?: number;
+};
+
+type RadioTranscriptState = {
+  status: "loading" | "done" | "error";
+  text?: string;
+  error?: string;
+  model?: string;
 };
 
 type Point = { x: number; y: number };
@@ -260,6 +271,162 @@ function SessionStats({
   );
 }
 
+function DriverRail({
+  drivers,
+  selectedNumber,
+  onSelect,
+}: {
+  drivers: LiveDriverRow[];
+  selectedNumber: string | null;
+  onSelect: (number: string) => void;
+}) {
+  if (!drivers.length) return null;
+  return (
+    <nav className="liveDriverRail" aria-label="Driver focus">
+      {drivers.map((driver) => (
+        <button
+          type="button"
+          key={driver.number}
+          className={selectedNumber === driver.number ? "selected" : ""}
+          style={{ "--row-color": "#" + driver.teamColour } as CSSProperties}
+          onClick={() => onSelect(driver.number)}
+          title={(driver.name || driver.tla) + " · " + (driver.team || "Formula 1")}
+        >
+          <i />
+          <span>P{valueOrDash(driver.position)}</span>
+          <strong>{driver.tla || driver.number}</strong>
+          <small>
+            {driver.tyre ? driver.tyre.slice(0, 1) : "—"}
+            {driver.stintLaps == null ? "" : " · " + driver.stintLaps + "L"}
+          </small>
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function CommentaryList({
+  items,
+  selectedNumber,
+  onSelect,
+}: {
+  items: LiveCommentaryItem[];
+  selectedNumber: string | null;
+  onSelect: (number: string) => void;
+}) {
+  if (!items.length)
+    return <div className="liveEmpty">Waiting for enough live timing data to build the race narrative…</div>;
+  return (
+    <div className="liveCommentaryList">
+      {items.map((item, index) => {
+        const body = (
+          <>
+            <span>{item.kicker}</span>
+            <strong>{item.headline}</strong>
+            <p>{item.detail}</p>
+          </>
+        );
+        return item.number ? (
+          <button
+            type="button"
+            key={item.kicker + item.headline + index}
+            className={"liveCommentaryItem " + item.tone + (selectedNumber === item.number ? " selected" : "")}
+            onClick={() => onSelect(item.number!)}
+          >
+            {body}
+          </button>
+        ) : (
+          <div key={item.kicker + item.headline + index} className={"liveCommentaryItem " + item.tone}>
+            {body}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function feedPreview(value: unknown) {
+  if (value === undefined) return "No payload received for this feed in the current session.";
+  try {
+    const json = JSON.stringify(value, null, 2);
+    if (!json) return "Empty payload.";
+    const limit = 20000;
+    return json.length > limit
+      ? json.slice(0, limit) + "\n\n… preview truncated (" + json.length.toLocaleString() + " characters total)"
+      : json;
+  } catch {
+    return "Payload could not be serialized.";
+  }
+}
+
+function FeedExplorer({
+  store,
+  coverage,
+  driver,
+  facts,
+}: {
+  store: LiveTimingStore;
+  coverage: Array<{ feed: string; key: string; active: boolean }>;
+  driver: LiveDriverRow | null;
+  facts: LiveDriverFeedFact[];
+}) {
+  const activeFeeds = coverage.filter((feed) => feed.active);
+  const [selectedFeed, setSelectedFeed] = useState("TimingData");
+  const effectiveFeed = activeFeeds.some((feed) => feed.feed === selectedFeed)
+    ? selectedFeed
+    : activeFeeds[0]?.feed ?? selectedFeed;
+  const selectedKey = liveFeedKey(effectiveFeed);
+  const payload = store[selectedKey];
+  const preview = useMemo(() => feedPreview(payload), [payload]);
+  const payloadSize = useMemo(() => {
+    try {
+      return JSON.stringify(payload)?.length ?? 0;
+    } catch {
+      return 0;
+    }
+  }, [payload]);
+
+  return (
+    <div className="liveExplorerBody">
+      <div className="liveExplorerToolbar">
+        <label>
+          FEED
+          <select value={effectiveFeed} onChange={(event) => setSelectedFeed(event.target.value)}>
+            {coverage.map((feed) => (
+              <option key={feed.feed} value={feed.feed}>
+                {feed.active ? "● " : "○ "}
+                {feed.feed}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span>{payloadSize ? payloadSize.toLocaleString() + " chars" : "no payload"}</span>
+      </div>
+      <div className="liveExplorerGrid">
+        <div className="liveDriverFacts">
+          <div className="liveExplorerSubhead">
+            <span>SELECTED DRIVER DATA</span>
+            <strong>{driver ? driver.tla || driver.number : "—"}</strong>
+          </div>
+          {facts.slice(0, 24).map((fact, index) => (
+            <div className="liveDriverFact" key={fact.feed + fact.label + index}>
+              <small>{fact.feed}</small>
+              <span>{fact.label}</span>
+              <strong>{fact.value}</strong>
+            </div>
+          ))}
+          {!facts.length && (
+            <div className="liveEmpty">
+              No additional driver-linked optional-feed values have arrived yet.
+            </div>
+          )}
+        </div>
+        <pre className="liveRawFeed" aria-label={effectiveFeed + " raw data preview"}>{preview}</pre>
+      </div>
+    </div>
+  );
+}
+
 export function LiveTerminal() {
   const [store, setStore] = useState<LiveTimingStore>({});
   const [connection, setConnection] = useState<ConnectionState>("connecting");
@@ -267,6 +434,31 @@ export function LiveTerminal() {
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
   const [positionHistory, setPositionHistory] = useState<Record<string, Point[]>>({});
+  const [radioTranscriptionConfigured, setRadioTranscriptionConfigured] = useState(false);
+  const [radioTranscriptionModel, setRadioTranscriptionModel] = useState("");
+  const [autoTranscribeRadio, setAutoTranscribeRadio] = useState(false);
+  const [radioTranscripts, setRadioTranscripts] = useState<Record<string, RadioTranscriptState>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/radio-transcript", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          configured?: boolean;
+          model?: string;
+        };
+        if (cancelled) return;
+        setRadioTranscriptionConfigured(Boolean(payload.configured));
+        setRadioTranscriptionModel(payload.model ?? "");
+      })
+      .catch(() => {
+        /* Transcription is optional; live timing should not depend on it. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const source = new EventSource("/api/live-timing");
@@ -335,6 +527,7 @@ export function LiveTerminal() {
   const feedNames = useMemo(() => selectLiveFeedNames(store), [store]);
   const feedCoverage = useMemo(() => selectLiveFeedCoverage(store), [store]);
   const sessionStats = useMemo(() => selectLiveSessionStats(drivers), [drivers]);
+  const commentary = useMemo(() => selectLiveCommentary(store, drivers), [store, drivers]);
   const championship = useMemo(() => selectLiveChampionship(store), [store]);
 
   const selected =
@@ -352,6 +545,10 @@ export function LiveTerminal() {
     () => (selected ? selectLiveDriverEventCounts(store, selected.number) : null),
     [store, selected],
   );
+  const selectedFacts = useMemo(
+    () => (selected ? selectLiveDriverFeedFacts(store, selected.number) : []),
+    [store, selected],
+  );
   const selectedChampionship = selected
     ? championship.find((row) => row.number === selected.number)
     : null;
@@ -359,6 +556,76 @@ export function LiveTerminal() {
     if (!selected) return radio;
     return [...radio].sort((a, b) => Number(b.number === selected.number) - Number(a.number === selected.number));
   }, [radio, selected]);
+
+  const transcribeRadioClip = useCallback(
+    async (clip: { path: string; text: string }) => {
+      if (!radioTranscriptionConfigured || !session?.path || !clip.path || clip.text) return;
+      const key = clip.path;
+      const current = radioTranscripts[key];
+      if (current?.status === "loading" || current?.status === "done") return;
+      setRadioTranscripts((state) => ({
+        ...state,
+        [key]: { status: "loading" },
+      }));
+      try {
+        const response = await fetch("/api/radio-transcript", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionPath: session.path,
+            clipPath: clip.path,
+          }),
+        });
+        const payload = (await response.json()) as {
+          text?: string;
+          error?: string;
+          model?: string;
+        };
+        if (!response.ok || !payload.text) {
+          throw new Error(payload.error || "Transcription failed.");
+        }
+        setRadioTranscripts((state) => ({
+          ...state,
+          [key]: {
+            status: "done",
+            text: payload.text,
+            model: payload.model,
+          },
+        }));
+      } catch (error) {
+        setRadioTranscripts((state) => ({
+          ...state,
+          [key]: {
+            status: "error",
+            error: error instanceof Error ? error.message : "Transcription failed.",
+          },
+        }));
+      }
+    },
+    [radioTranscriptionConfigured, radioTranscripts, session?.path],
+  );
+
+  useEffect(() => {
+    if (!autoTranscribeRadio || !radioTranscriptionConfigured || !session?.path) return;
+    const next = selectedRadio
+      .slice(0, 14)
+      .find(
+        (clip) =>
+          clip.path &&
+          !clip.text &&
+          radioTranscripts[clip.path]?.status !== "loading" &&
+          radioTranscripts[clip.path]?.status !== "done" &&
+          radioTranscripts[clip.path]?.status !== "error",
+      );
+    if (next) void transcribeRadioClip(next);
+  }, [
+    autoTranscribeRadio,
+    radioTranscriptionConfigured,
+    radioTranscripts,
+    selectedRadio,
+    session?.path,
+    transcribeRadioClip,
+  ]);
 
   const selectedMentions = selected
     ? raceControl.filter((item) => {
@@ -420,6 +687,11 @@ export function LiveTerminal() {
       )}
 
       <SessionStats stats={sessionStats} drivers={drivers} onSelect={setSelectedNumber} />
+      <DriverRail
+        drivers={drivers}
+        selectedNumber={selected?.number ?? null}
+        onSelect={setSelectedNumber}
+      />
 
       <section className="liveGrid">
         <article className="liveCard liveTimingCard">
@@ -596,6 +868,21 @@ export function LiveTerminal() {
           </div>
         </article>
 
+        <article className="liveCard liveCommentaryCard">
+          <div className="liveCardHeader liveCardHeaderSplit">
+            <div>
+              <span>LIVE CONTEXT · DERIVED</span>
+              <strong>Commentary Desk</strong>
+            </div>
+            <small>timing facts only</small>
+          </div>
+          <CommentaryList
+            items={commentary}
+            selectedNumber={selected?.number ?? null}
+            onSelect={setSelectedNumber}
+          />
+        </article>
+
         <article className="liveCard liveStrategyCard">
           <div className="liveCardHeader">
             <span>DRIVER EVENTS</span>
@@ -664,6 +951,22 @@ export function LiveTerminal() {
           </div>
         </article>
 
+        <article className="liveCard liveExplorerCard">
+          <div className="liveCardHeader liveCardHeaderSplit">
+            <div>
+              <span>ALL RECEIVED DATA</span>
+              <strong>Feed / Driver Explorer</strong>
+            </div>
+            <small>{feedNames.length} feeds received</small>
+          </div>
+          <FeedExplorer
+            store={store}
+            coverage={feedCoverage}
+            driver={selected}
+            facts={selectedFacts}
+          />
+        </article>
+
         <article className="liveCard liveFeedsCard">
           <div className="liveCardHeader liveCardHeaderSplit">
             <div>
@@ -689,10 +992,13 @@ export function LiveTerminal() {
           </div>
           <div className="liveRaceControl">
             {raceControl.slice(0, 30).map((item, index) => {
-              const selectedMention =
-                !!selected &&
-                (item.message.toUpperCase().includes("CAR " + selected.number) ||
-                  (!!selected.tla && item.message.toUpperCase().includes(selected.tla.toUpperCase())));
+              const upper = item.message.toUpperCase();
+              const mentionedDrivers = drivers.filter((driver) =>
+                upper.includes("CAR " + driver.number) ||
+                (!!driver.tla && upper.includes(driver.tla.toUpperCase())) ||
+                (!!driver.name && upper.includes(driver.name.toUpperCase()))
+              ).slice(0, 4);
+              const selectedMention = !!selected && mentionedDrivers.some((driver) => driver.number === selected.number);
               return (
                 <div className={"liveRaceMessage " + (selectedMention ? "selectedDriver" : "")} key={item.utc + "-" + index}>
                   <span>{item.flag || item.category || "INFO"}</span>
@@ -708,6 +1014,21 @@ export function LiveTerminal() {
                       : ""}
                   </small>
                   <p>{item.message}</p>
+                  {!!mentionedDrivers.length && (
+                    <div className="liveRcDrivers">
+                      {mentionedDrivers.map((driver) => (
+                        <button
+                          type="button"
+                          key={driver.number}
+                          style={{ "--row-color": "#" + driver.teamColour } as CSSProperties}
+                          onClick={() => setSelectedNumber(driver.number)}
+                        >
+                          <i />
+                          {driver.tla || driver.number}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -721,13 +1042,30 @@ export function LiveTerminal() {
               <span>TEAM RADIO</span>
               <strong>Latest Captures</strong>
             </div>
-            {selected && <small>{selectedEvents?.radio.length ?? 0} for {selected.tla}</small>}
+            <div className="liveRadioHeaderTools">
+              {selected && <small>{selectedEvents?.radio.length ?? 0} for {selected.tla}</small>}
+              {radioTranscriptionConfigured ? (
+                <button
+                  type="button"
+                  className={"liveAutoTranscribe " + (autoTranscribeRadio ? "active" : "")}
+                  onClick={() => setAutoTranscribeRadio((value) => !value)}
+                  title={radioTranscriptionModel ? "Model: " + radioTranscriptionModel : undefined}
+                >
+                  AUTO TRANSCRIBE {autoTranscribeRadio ? "ON" : "OFF"}
+                </button>
+              ) : (
+                <small title="Set OPENAI_API_KEY on the local server to enable speech-to-text.">
+                  TRANSCRIPTION NOT CONFIGURED
+                </small>
+              )}
+            </div>
           </div>
           <div className="liveRadioList">
             {selectedRadio.slice(0, 14).map((clip, index) => {
               const driver = driverByNumber.get(clip.number);
               const url = teamRadioUrl(session, clip);
               const isSelected = clip.number === selected?.number;
+              const transcript = clip.path ? radioTranscripts[clip.path] : undefined;
               return (
                 <div
                   className={"liveRadioItem " + (isSelected ? "selectedDriver" : "")}
@@ -735,7 +1073,19 @@ export function LiveTerminal() {
                   style={driver ? ({ "--row-color": "#" + driver.teamColour } as CSSProperties) : undefined}
                 >
                   <div className="liveRadioMeta">
-                    <strong>{driver ? <DriverIdentity driver={driver} compact /> : driverLabel(driver, clip.number)}</strong>
+                    <strong>
+                      {driver ? (
+                        <button
+                          type="button"
+                          className="liveDriverLink"
+                          onClick={() => setSelectedNumber(driver.number)}
+                        >
+                          <DriverIdentity driver={driver} compact />
+                        </button>
+                      ) : (
+                        driverLabel(driver, clip.number)
+                      )}
+                    </strong>
                     <span>
                       {clip.utc
                         ? new Date(clip.utc).toLocaleTimeString([], {
@@ -746,7 +1096,35 @@ export function LiveTerminal() {
                         : "—"}
                     </span>
                   </div>
-                  {clip.text && <p>{clip.text}</p>}
+                  {clip.text ? (
+                    <p className="liveTranscript">
+                      <small>F1 TRANSCRIPT</small>
+                      {clip.text}
+                    </p>
+                  ) : transcript?.status === "done" && transcript.text ? (
+                    <p className="liveTranscript ai">
+                      <small>AI TRANSCRIPT{transcript.model ? " · " + transcript.model : ""}</small>
+                      {transcript.text}
+                    </p>
+                  ) : transcript?.status === "error" ? (
+                    <div className="liveTranscriptError">
+                      <span>{transcript.error}</span>
+                      <button type="button" onClick={() => clip.path && setRadioTranscripts((state) => {
+                        const next = { ...state };
+                        delete next[clip.path];
+                        return next;
+                      })}>RETRY</button>
+                    </div>
+                  ) : radioTranscriptionConfigured && clip.path ? (
+                    <button
+                      type="button"
+                      className="liveTranscribeButton"
+                      disabled={transcript?.status === "loading"}
+                      onClick={() => void transcribeRadioClip(clip)}
+                    >
+                      {transcript?.status === "loading" ? "TRANSCRIBING…" : "TRANSCRIBE RADIO"}
+                    </button>
+                  ) : null}
                   {url ? (
                     <audio controls preload="none" src={url}>
                       Team radio audio
