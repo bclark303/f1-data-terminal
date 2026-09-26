@@ -516,8 +516,8 @@ export function LiveTerminal() {
               <div className="liveTelemetryHero">
                 <div>
                   <span>SPEED</span>
-                  <strong>{selected.speed == null ? "—" : selected.speed}</strong>
-                  <small>km/h</small>
+                  <strong>{selected.speed == null ? "—" : selected.speed + " km/h"}</strong>
+                  <small>live</small>
                 </div>
                 <div>
                   <span>GEAR</span>
@@ -555,10 +555,10 @@ export function LiveTerminal() {
               </div>
 
               <div className="liveSpeedTraps">
-                <Metric label="I1" value={selected.speeds.i1 || "—"} />
-                <Metric label="I2" value={selected.speeds.i2 || "—"} />
-                <Metric label="Finish" value={selected.speeds.finish || "—"} />
-                <Metric label="ST" value={selected.speeds.straight || "—"} />
+                <Metric label="I1" value={selected.speeds.i1 ? selected.speeds.i1 + " km/h" : "—"} />
+                <Metric label="I2" value={selected.speeds.i2 ? selected.speeds.i2 + " km/h" : "—"} />
+                <Metric label="Finish" value={selected.speeds.finish ? selected.speeds.finish + " km/h" : "—"} />
+                <Metric label="ST" value={selected.speeds.straight ? selected.speeds.straight + " km/h" : "—"} />
               </div>
             </>
           ) : (
