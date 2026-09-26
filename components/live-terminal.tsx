@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LIVE_TOPICS,
   applyLiveRecord,
+  liveFeedKey,
   selectLiveClock,
   selectLiveDrivers,
   selectLiveFeedNames,
@@ -100,47 +101,25 @@ function Sector({
 
 function LiveTrackMap({
   positions,
+  histories,
   drivers,
   selectedNumber,
   onSelect,
 }: {
   positions: LivePosition[];
+  histories: Record<string, Point[]>;
   drivers: LiveDriverRow[];
   selectedNumber: string | null;
   onSelect: (number: string) => void;
 }) {
-  const histories = useRef(new Map<string, Point[]>());
-  const [revision, setRevision] = useState(0);
-
-  useEffect(() => {
-    let changed = false;
-    for (const position of positions) {
-      let history = histories.current.get(position.number);
-      if (!history) {
-        history = [];
-        histories.current.set(position.number, history);
-      }
-      const previous = history.at(-1);
-      const moved =
-        !previous ||
-        Math.hypot(position.x - previous.x, position.y - previous.y) >= 8;
-      if (!moved) continue;
-      history.push({ x: position.x, y: position.y });
-      if (history.length > 2500) history.splice(0, history.length - 2500);
-      changed = true;
-    }
-    if (changed) setRevision((value) => value + 1);
-  }, [positions]);
-
   const projection = useMemo(() => {
-    void revision;
     const selectedHistory = selectedNumber
-      ? histories.current.get(selectedNumber) ?? []
+      ? histories[selectedNumber] ?? []
       : [];
     const reference =
       selectedHistory.length >= 20
         ? selectedHistory
-        : [...histories.current.values()].flat();
+        : Object.values(histories).flat();
     const source = reference.length ? reference : positions;
     if (!source.length) return null;
 
@@ -165,7 +144,7 @@ function LiveTrackMap({
       }),
       selectedHistory,
     };
-  }, [positions, revision, selectedNumber]);
+  }, [histories, positions, selectedNumber]);
 
   const driverByNumber = useMemo(
     () => new Map(drivers.map((driver) => [driver.number, driver])),
@@ -249,6 +228,9 @@ export function LiveTerminal() {
   const [connectionMessage, setConnectionMessage] = useState("");
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
+  const [positionHistory, setPositionHistory] = useState<
+    Record<string, Point[]>
+  >({});
 
   useEffect(() => {
     const source = new EventSource("/api/live-timing");
@@ -273,6 +255,31 @@ export function LiveTerminal() {
           at?: number;
         };
         if (!record.feed) return;
+        if (liveFeedKey(record.feed) === "Position") {
+          const samples = selectLivePositions({ Position: record.data });
+          if (samples.length) {
+            setPositionHistory((current) => {
+              const next = { ...current };
+              for (const sample of samples) {
+                const history = [...(current[sample.number] ?? [])];
+                const previous = history.at(-1);
+                if (
+                  previous &&
+                  Math.hypot(
+                    sample.x - previous.x,
+                    sample.y - previous.y,
+                  ) < 8
+                )
+                  continue;
+                history.push({ x: sample.x, y: sample.y });
+                if (history.length > 2500)
+                  history.splice(0, history.length - 2500);
+                next[sample.number] = history;
+              }
+              return next;
+            });
+          }
+        }
         setStore((current) =>
           applyLiveRecord(current, record.feed as string, record.data),
         );
@@ -568,6 +575,7 @@ export function LiveTerminal() {
           </div>
           <LiveTrackMap
             positions={positions}
+            histories={positionHistory}
             drivers={drivers}
             selectedNumber={selected?.number ?? null}
             onSelect={setSelectedNumber}
