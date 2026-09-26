@@ -1051,3 +1051,70 @@ button.liveCommentaryItem:hover { border-color: #465562; }
   }
   .liveDriverFact strong { grid-column: 2; }
 }
+
+
+.liveRadioHeaderTools {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.liveAutoTranscribe,
+.liveTranscribeButton,
+.liveTranscriptError button {
+  border: 1px solid #33424f;
+  background: #0a1015;
+  color: #93a1ac;
+  padding: 5px 7px;
+  font: inherit;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.liveAutoTranscribe:hover,
+.liveTranscribeButton:hover,
+.liveTranscriptError button:hover {
+  border-color: #556675;
+  color: #fff;
+}
+.liveAutoTranscribe.active {
+  border-color: #3c8759;
+  color: #6cdf91;
+  box-shadow: inset 0 -2px #4fd17a;
+}
+.liveTranscribeButton {
+  margin-top: 7px;
+}
+.liveTranscribeButton:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+.liveTranscript {
+  display: grid;
+  gap: 4px;
+  border-left: 2px solid #496375;
+  background: rgba(72, 97, 116, .08);
+  padding: 7px 8px;
+}
+.liveTranscript.ai {
+  border-left-color: #5da8ff;
+  background: rgba(73, 133, 184, .08);
+}
+.liveTranscript small {
+  color: #6f8798;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .09em;
+}
+.liveTranscriptError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  border: 1px solid #603738;
+  background: rgba(126, 45, 47, .08);
+  padding: 6px 7px;
+  color: #d89595;
+  font-size: 8px;
+}
