@@ -570,7 +570,7 @@ export function LiveTerminal() {
           <div className="liveCardHeader liveCardHeaderSplit">
             <div>
               <span>POSITION.Z</span>
-              <strong>Live Track / Driver Map</strong>
+              <strong>Live Track / XY Position</strong>
             </div>
             {selected && <DriverIdentity driver={selected} compact />}
           </div>
