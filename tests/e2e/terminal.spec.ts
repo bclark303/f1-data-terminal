@@ -47,6 +47,7 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
     ["SessionInfo", {
       Name: "Race",
       Type: "Race",
+      Path: "2026/2026-09-20_Spanish_Grand_Prix/2026-09-20_Race/",
       Meeting: {
         Name: "Spanish Grand Prix",
         Location: "Madrid",
@@ -54,6 +55,11 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
       },
     }],
     ["SessionStatus", { Status: "Started" }],
+    ["ExtrapolatedClock", {
+      Utc: "2026-09-20T13:00:00Z",
+      Remaining: "01:22:33",
+      Extrapolating: true,
+    }],
     ["LapCount", { CurrentLap: 12, TotalLaps: 66 }],
     ["TrackStatus", { Status: "1" }],
     ["WeatherData", {
@@ -83,6 +89,26 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
           IntervalToPositionAhead: { Value: "" },
           LastLapTime: { Value: "1:20.000" },
           BestLapTime: { Value: "1:19.500" },
+          NumberOfLaps: 12,
+          NumberOfPitStops: 1,
+          Sectors: {
+            "0": {
+              Value: "31.100",
+              PersonalFastest: true,
+              Segments: {
+                "0": { Status: 2048 },
+                "1": { Status: 2051 },
+              },
+            },
+            "1": { Value: "28.500" },
+            "2": { Value: "20.200", OverallFastest: true },
+          },
+          Speeds: {
+            I1: { Value: "285" },
+            I2: { Value: "301" },
+            FL: { Value: "267" },
+            ST: { Value: "332" },
+          },
         },
       },
     }],
@@ -90,7 +116,11 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
       Lines: {
         "1": {
           Stints: {
-            "0": { Compound: "MEDIUM", TotalLaps: 5 },
+            "0": {
+              Compound: "MEDIUM",
+              New: "true",
+              TotalLaps: 5,
+            },
           },
         },
       },
@@ -112,6 +142,26 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
           },
         },
       ],
+    }],
+    ["Position.z", {
+      Position: [
+        {
+          Timestamp: "2026-09-20T13:01:02Z",
+          Entries: {
+            "1": { X: 1000, Y: 2000, Z: 15, Status: "OnTrack" },
+          },
+        },
+      ],
+    }],
+    ["TeamRadio", {
+      Captures: {
+        "0": {
+          Utc: "2026-09-20T13:00:50Z",
+          RacingNumber: "1",
+          Path: "TeamRadio/VER_1.mp3",
+          Transcript: "Box this lap",
+        },
+      },
     }],
     ["RaceControlMessages", {
       Messages: {
@@ -145,10 +195,23 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
   await page.goto("/live");
   await expect(page.getByText("Spanish Grand Prix")).toBeVisible();
   await expect(page.getByText("M VERSTAPPEN")).toBeVisible();
-  await expect(page.getByText("305", { exact: true })).toBeVisible();
+  await expect(page.getByText("305 km/h", { exact: true })).toBeVisible();
+  await expect(page.getByText("Aero ch45", { exact: true })).toBeVisible();
+  await expect(page.getByText("31.100", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("332 km/h", { exact: true })).toBeVisible();
   await expect(page.getByText("TRACK CLEAR").first()).toBeVisible();
   await expect(page.getByText("27.1°C")).toBeVisible();
   await expect(page.getByText("LAP 12 / 66")).toBeVisible();
+  await expect(page.getByText("CLOCK 01:22:33 · RUNNING")).toBeVisible();
+  await expect(
+    page.getByText("Live Track / XY Position", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/1 cars · ~220 ms position feed/)).toBeVisible();
+  await expect(page.getByText("Box this lap")).toBeVisible();
+  await expect(page.locator(".liveRadioItem audio")).toHaveAttribute(
+    "src",
+    /TeamRadio\/VER_1\.mp3$/,
+  );
 });
 
 test("race selector switches between available historical races", async ({
