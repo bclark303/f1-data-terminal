@@ -3,13 +3,17 @@ import assert from "node:assert/strict";
 import {
   applyLiveRecord,
   recordsFromSignalRFrames,
+  selectLiveClock,
   selectLiveDrivers,
   selectLiveLapCount,
+  selectLivePositions,
   selectLiveRaceControl,
   selectLiveSessionInfo,
+  selectLiveTeamRadio,
   selectLiveTrackStatus,
   selectLiveWeather,
   splitSignalRFrames,
+  teamRadioUrl,
   type LiveTimingStore,
 } from "../lib/live-timing";
 
@@ -76,12 +80,53 @@ test("live timing deltas merge while car data snapshots replace", () => {
         Position: "1",
         GapToLeader: "",
         IntervalToPositionAhead: { Value: "" },
+        NumberOfLaps: 12,
+        NumberOfPitStops: 1,
+        Sectors: {
+          "0": {
+            Value: "31.100",
+            PersonalFastest: true,
+            Segments: {
+              "0": { Status: 2048 },
+              "1": { Status: 2051 },
+            },
+          },
+          "1": { Value: "28.500" },
+          "2": { Value: "20.200", OverallFastest: true },
+        },
+        Speeds: {
+          I1: { Value: "285" },
+          I2: { Value: "301" },
+          FL: { Value: "267" },
+          ST: { Value: "332" },
+        },
       },
     },
   });
-  const rows = selectLiveDrivers(timingStore);
+  const appStore = applyLiveRecord(timingStore, "TimingAppData", {
+    Lines: {
+      "1": {
+        Stints: {
+          "0": {
+            Compound: "MEDIUM",
+            New: "true",
+            TotalLaps: 7,
+          },
+        },
+      },
+    },
+  });
+  const rows = selectLiveDrivers(appStore);
   assert.equal(rows[0].speed, 300);
   assert.equal(rows[0].position, "1");
+  assert.equal(rows[0].currentLap, 12);
+  assert.equal(rows[0].pitStops, 1);
+  assert.equal(rows[0].sectors[0].value, "31.100");
+  assert.equal(rows[0].sectors[0].personalFastest, true);
+  assert.deepEqual(rows[0].sectors[0].segments, [2048, 2051]);
+  assert.equal(rows[0].speeds.straight, "332");
+  assert.equal(rows[0].tyre, "MEDIUM");
+  assert.equal(rows[0].tyreNew, true);
 });
 
 test("live selectors produce terminal view models", () => {
@@ -92,6 +137,7 @@ test("live selectors produce terminal view models", () => {
       {
         Name: "Race",
         Type: "Race",
+        Path: "2026/2026-09-20_Spanish_Grand_Prix/2026-09-20_Race/",
         Meeting: {
           Name: "Spanish Grand Prix",
           Location: "Madrid",
@@ -140,5 +186,75 @@ test("live selectors produce terminal view models", () => {
     type: "Race",
     location: "Madrid",
     country: "Spain",
+    path: "2026/2026-09-20_Spanish_Grand_Prix/2026-09-20_Race/",
   });
+});
+
+
+test("position, clock and team radio selectors expose additional live feeds", () => {
+  let store: LiveTimingStore = {};
+  store = applyLiveRecord(store, "Position.z", {
+    Position: [
+      {
+        Timestamp: "2026-09-20T13:02:03.100Z",
+        Entries: {
+          "1": { X: 1000, Y: 2000, Z: 15, Status: "OnTrack" },
+          "4": { X: 1100, Y: 2100, Z: 16, Status: "1" },
+        },
+      },
+    ],
+  });
+  store = applyLiveRecord(store, "ExtrapolatedClock", {
+    Utc: "2026-09-20T13:02:03Z",
+    Remaining: "01:22:33",
+    Extrapolating: true,
+  });
+  store = applyLiveRecord(store, "TeamRadio", {
+    Captures: {
+      "0": {
+        Utc: "2026-09-20T13:01:00Z",
+        RacingNumber: "1",
+        Path: "TeamRadio/VER_1.mp3",
+      },
+      "1": {
+        Utc: "2026-09-20T13:02:00Z",
+        RacingNumber: "4",
+        Path: "TeamRadio/NOR_4.mp3",
+        Transcript: "Box this lap",
+      },
+    },
+  });
+
+  const positions = selectLivePositions(store);
+  assert.equal(positions.length, 2);
+  assert.deepEqual(positions[0], {
+    number: "1",
+    timestamp: "2026-09-20T13:02:03.100Z",
+    x: 1000,
+    y: 2000,
+    z: 15,
+    status: "OnTrack",
+  });
+  assert.equal(positions[1].status, "OffTrack");
+  assert.deepEqual(selectLiveClock(store), {
+    remaining: "01:22:33",
+    extrapolating: true,
+    utc: "2026-09-20T13:02:03Z",
+  });
+  const radio = selectLiveTeamRadio(store);
+  assert.equal(radio[0].number, "4");
+  assert.equal(radio[0].text, "Box this lap");
+
+  const session = {
+    meeting: "Spanish Grand Prix",
+    session: "Race",
+    type: "Race",
+    location: "Madrid",
+    country: "Spain",
+    path: "2026/2026-09-20_Spanish_Grand_Prix/2026-09-20_Race/",
+  };
+  assert.equal(
+    teamRadioUrl(session, radio[0]),
+    "https://livetiming.formula1.com/static/2026/2026-09-20_Spanish_Grand_Prix/2026-09-20_Race/TeamRadio/NOR_4.mp3",
+  );
 });

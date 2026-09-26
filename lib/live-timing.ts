@@ -1,6 +1,20 @@
 export type JsonValue = unknown;
 export type LiveTimingStore = Record<string, unknown>;
 
+export type LiveSector = {
+  value: string;
+  overallFastest: boolean;
+  personalFastest: boolean;
+  segments: number[];
+};
+
+export type LiveSpeedTraps = {
+  i1: string;
+  i2: string;
+  finish: string;
+  straight: string;
+};
+
 export type LiveDriverRow = {
   number: string;
   tla: string;
@@ -13,16 +27,31 @@ export type LiveDriverRow = {
   interval: string;
   lastLap: string;
   bestLap: string;
+  sectors: [LiveSector, LiveSector, LiveSector];
+  speeds: LiveSpeedTraps;
   tyre: string;
+  tyreNew: boolean | null;
   stintLaps: number | null;
+  currentLap: number | null;
+  pitStops: number | null;
   inPit: boolean;
+  stopped: boolean;
   retired: boolean;
   speed: number | null;
   rpm: number | null;
   gear: number | null;
   throttle: number | null;
   brake: boolean | null;
-  drs: number | null;
+  aero: number | null;
+};
+
+export type LivePosition = {
+  number: string;
+  timestamp: string;
+  x: number;
+  y: number;
+  z: number;
+  status: string;
 };
 
 export type LiveWeather = {
@@ -43,12 +72,26 @@ export type LiveRaceControl = {
   message: string;
 };
 
+export type LiveTeamRadio = {
+  utc: string;
+  number: string;
+  path: string;
+  text: string;
+};
+
 export type LiveSessionInfo = {
   meeting: string;
   session: string;
   type: string;
   location: string;
   country: string;
+  path: string;
+};
+
+export type LiveClock = {
+  remaining: string;
+  extrapolating: boolean;
+  utc: string;
 };
 
 const REPLACE_FEEDS = new Set(["CarData", "Position"]);
@@ -58,25 +101,30 @@ const CAR_CHANNELS = {
   gear: 3,
   throttle: 4,
   brake: 5,
-  drs: 45,
+  aero: 45,
 } as const;
 
 export const LIVE_TOPICS = [
   "Heartbeat",
+  "AudioStreams",
   "DriverList",
   "ExtrapolatedClock",
   "RaceControlMessages",
   "SessionInfo",
   "SessionStatus",
+  "TeamRadio",
   "TimingAppData",
   "TimingStats",
   "TrackStatus",
   "WeatherData",
+  "Position.z",
+  "CarData.z",
+  "ContentStreams",
   "SessionData",
   "TimingData",
   "TopThree",
+  "RcmSeries",
   "LapCount",
-  "CarData.z",
 ] as const;
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -175,6 +223,15 @@ function values(value: unknown): unknown[] {
   return row ? Object.values(row).filter(Boolean) : [];
 }
 
+function numericValues(value: unknown): unknown[] {
+  const row = object(value);
+  if (!row) return Array.isArray(value) ? value.filter(Boolean) : [];
+  return Object.entries(row)
+    .sort(([a], [b]) => Number(a) - Number(b))
+    .map(([, item]) => item)
+    .filter(Boolean);
+}
+
 function latestChannels(store: LiveTimingStore, number: string) {
   const carData = object(store.CarData);
   const entries = carData && Array.isArray(carData.Entries)
@@ -186,13 +243,49 @@ function latestChannels(store: LiveTimingStore, number: string) {
 }
 
 function latestStint(line: unknown) {
-  const stints = values(object(line)?.Stints);
+  const stints = numericValues(object(line)?.Stints);
   return stints.at(-1) ?? null;
 }
 
 function numberOrNull(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function boolOrNull(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    if (value.toLowerCase() === "true") return true;
+    if (value.toLowerCase() === "false") return false;
+  }
+  return null;
+}
+
+function timingValue(value: unknown) {
+  const row = object(value);
+  return String(row?.Value ?? "");
+}
+
+function sectorFromTiming(timing: Record<string, unknown>, index: number): LiveSector {
+  const sectors = object(timing.Sectors);
+  const sector = object(sectors?.[String(index)]) ?? {};
+  const segments = numericValues(sector.Segments)
+    .map((raw) => numberOrNull(object(raw)?.Status))
+    .filter((status): status is number => status !== null);
+  return {
+    value: String(sector.Value ?? ""),
+    overallFastest: Boolean(sector.OverallFastest),
+    personalFastest: Boolean(sector.PersonalFastest),
+    segments,
+  };
+}
+
+function speedTrapFromTiming(
+  timing: Record<string, unknown>,
+  key: string,
+) {
+  return timingValue(object(timing.Speeds)?.[key]);
 }
 
 export function selectLiveDrivers(store: LiveTimingStore): LiveDriverRow[] {
@@ -209,6 +302,7 @@ export function selectLiveDrivers(store: LiveTimingStore): LiveDriverRow[] {
     const stint = object(latestStint(appLines[number])) ?? {};
     const channels = latestChannels(store, number);
     const brake = channels ? numberOrNull(channels[CAR_CHANNELS.brake]) : null;
+
     rows.push({
       number,
       tla: String(driver.Tla ?? ""),
@@ -221,9 +315,24 @@ export function selectLiveDrivers(store: LiveTimingStore): LiveDriverRow[] {
       interval: String(object(timing.IntervalToPositionAhead)?.Value ?? ""),
       lastLap: String(object(timing.LastLapTime)?.Value ?? ""),
       bestLap: String(object(timing.BestLapTime)?.Value ?? ""),
+      sectors: [
+        sectorFromTiming(timing, 0),
+        sectorFromTiming(timing, 1),
+        sectorFromTiming(timing, 2),
+      ],
+      speeds: {
+        i1: speedTrapFromTiming(timing, "I1"),
+        i2: speedTrapFromTiming(timing, "I2"),
+        finish: speedTrapFromTiming(timing, "FL"),
+        straight: speedTrapFromTiming(timing, "ST"),
+      },
       tyre: String(stint.Compound ?? "").toUpperCase(),
+      tyreNew: boolOrNull(stint.New),
       stintLaps: numberOrNull(stint.TotalLaps ?? stint.StartLaps),
+      currentLap: numberOrNull(timing.NumberOfLaps),
+      pitStops: numberOrNull(timing.NumberOfPitStops),
       inPit: Boolean(timing.InPit),
+      stopped: Boolean(timing.Stopped),
       retired: Boolean(timing.Retired),
       speed: channels ? numberOrNull(channels[CAR_CHANNELS.speed]) : null,
       rpm: channels ? numberOrNull(channels[CAR_CHANNELS.rpm]) : null,
@@ -232,11 +341,41 @@ export function selectLiveDrivers(store: LiveTimingStore): LiveDriverRow[] {
         ? numberOrNull(channels[CAR_CHANNELS.throttle])
         : null,
       brake: brake === null ? null : brake > 0,
-      drs: channels ? numberOrNull(channels[CAR_CHANNELS.drs]) : null,
+      aero: channels ? numberOrNull(channels[CAR_CHANNELS.aero]) : null,
     });
   }
 
   return rows.sort((a, b) => a.line - b.line);
+}
+
+export function selectLivePositions(
+  store: LiveTimingStore,
+): LivePosition[] {
+  const position = object(store.Position);
+  const samples = position && Array.isArray(position.Position)
+    ? position.Position
+    : [];
+  const latest = object(samples.at(-1));
+  const entries = object(latest?.Entries);
+  if (!entries) return [];
+  const timestamp = String(latest?.Timestamp ?? "");
+
+  return Object.entries(entries).flatMap(([number, raw]) => {
+    const row = object(raw);
+    if (!row) return [];
+    const x = numberOrNull(row.X);
+    const y = numberOrNull(row.Y);
+    const z = numberOrNull(row.Z);
+    if (x === null || y === null || z === null) return [];
+    const rawStatus = row.Status;
+    const status =
+      typeof rawStatus === "string" && !/^\d+$/.test(rawStatus)
+        ? rawStatus
+        : Number(rawStatus) === 1
+          ? "OffTrack"
+          : "OnTrack";
+    return [{ number, timestamp, x, y, z, status }];
+  });
 }
 
 export function selectLiveWeather(
@@ -291,12 +430,57 @@ export function selectLiveRaceControl(
     .reverse();
 }
 
+export function selectLiveTeamRadio(
+  store: LiveTimingStore,
+): LiveTeamRadio[] {
+  const captures = object(store.TeamRadio)?.Captures;
+  return values(captures)
+    .map((raw) => {
+      const capture = object(raw) ?? {};
+      return {
+        utc: String(capture.Utc ?? ""),
+        number: String(capture.RacingNumber ?? ""),
+        path: String(capture.Path ?? ""),
+        text: String(capture.Transcript ?? capture.Text ?? ""),
+      };
+    })
+    .filter((clip) => clip.number || clip.path)
+    .reverse();
+}
+
+export function teamRadioUrl(
+  session: LiveSessionInfo | null,
+  clip: LiveTeamRadio,
+) {
+  if (!session?.path || !clip.path) return null;
+  if (
+    session.path.includes("..") ||
+    clip.path.includes("..") ||
+    /:/.test(session.path) ||
+    /:/.test(clip.path)
+  )
+    return null;
+  const base = session.path.endsWith("/") ? session.path : session.path + "/";
+  const relative = clip.path.replace(/^\/+/, "");
+  return `https://livetiming.formula1.com/static/${base}${relative}`;
+}
+
 export function selectLiveLapCount(store: LiveTimingStore) {
   const count = object(store.LapCount);
   if (!count) return null;
   const current = numberOrNull(count.CurrentLap);
   const total = numberOrNull(count.TotalLaps);
   return current !== null && total !== null ? { current, total } : null;
+}
+
+export function selectLiveClock(store: LiveTimingStore): LiveClock | null {
+  const clock = object(store.ExtrapolatedClock);
+  if (!clock) return null;
+  return {
+    remaining: String(clock.Remaining ?? ""),
+    extrapolating: Boolean(clock.Extrapolating),
+    utc: String(clock.Utc ?? ""),
+  };
 }
 
 export function selectLiveSessionInfo(
@@ -312,10 +496,15 @@ export function selectLiveSessionInfo(
     type: String(info.Type ?? ""),
     location: String(meeting.Location ?? ""),
     country: String(country.Name ?? ""),
+    path: String(info.Path ?? ""),
   };
 }
 
 export function selectLiveSessionStatus(store: LiveTimingStore) {
   const status = object(store.SessionStatus);
   return status ? String(status.Status ?? "") : "";
+}
+
+export function selectLiveFeedNames(store: LiveTimingStore) {
+  return Object.keys(store).sort();
 }
