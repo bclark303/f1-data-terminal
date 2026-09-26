@@ -201,7 +201,7 @@ test("live mode renders F1 timing, telemetry, weather and race control", async (
   await expect(page.getByText("Strategy / Activity", { exact: true })).toBeVisible();
   await expect(page.getByText("Feed Coverage", { exact: true })).toBeVisible();
   await expect(page.getByText("31.100", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("332 km/h", { exact: true })).toBeVisible();
+  await expect(page.locator(".liveDriverCard").getByText("332 km/h", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("TRACK CLEAR").first()).toBeVisible();
   await expect(page.getByText("27.1°C")).toBeVisible();
   await expect(page.getByText("LAP 12 / 66")).toBeVisible();
