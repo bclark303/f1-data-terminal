@@ -372,12 +372,10 @@ function FeedExplorer({
 }) {
   const activeFeeds = coverage.filter((feed) => feed.active);
   const [selectedFeed, setSelectedFeed] = useState("TimingData");
-  useEffect(() => {
-    if (activeFeeds.some((feed) => feed.feed === selectedFeed)) return;
-    const next = activeFeeds[0]?.feed;
-    if (next) setSelectedFeed(next);
-  }, [activeFeeds, selectedFeed]);
-  const selectedKey = liveFeedKey(selectedFeed);
+  const effectiveFeed = activeFeeds.some((feed) => feed.feed === selectedFeed)
+    ? selectedFeed
+    : activeFeeds[0]?.feed ?? selectedFeed;
+  const selectedKey = liveFeedKey(effectiveFeed);
   const payload = store[selectedKey];
   const preview = useMemo(() => feedPreview(payload), [payload]);
   const payloadSize = useMemo(() => {
@@ -393,7 +391,7 @@ function FeedExplorer({
       <div className="liveExplorerToolbar">
         <label>
           FEED
-          <select value={selectedFeed} onChange={(event) => setSelectedFeed(event.target.value)}>
+          <select value={effectiveFeed} onChange={(event) => setSelectedFeed(event.target.value)}>
             {coverage.map((feed) => (
               <option key={feed.feed} value={feed.feed}>
                 {feed.active ? "● " : "○ "}
@@ -423,7 +421,7 @@ function FeedExplorer({
             </div>
           )}
         </div>
-        <pre className="liveRawFeed" aria-label={selectedFeed + " raw data preview"}>{preview}</pre>
+        <pre className="liveRawFeed" aria-label={effectiveFeed + " raw data preview"}>{preview}</pre>
       </div>
     </div>
   );
