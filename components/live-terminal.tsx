@@ -204,7 +204,7 @@ function LiveTrackMap({
       </svg>
       {!positions.length && <div className="liveTrackWaiting">Waiting for Position.z…</div>}
       <div className="liveTrackLegend">
-        <span>{positions.length ? positions.length + " cars · live XY" : "position feed unavailable"}</span>
+        <span>{positions.length ? positions.length + " cars · ~220 ms position feed" : "position feed unavailable"}</span>
         <span>{selectedDriver ? "trace · " + (selectedDriver.tla || selectedDriver.number) : "select a driver to follow"}</span>
       </div>
     </div>
