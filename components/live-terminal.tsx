@@ -532,7 +532,7 @@ export function LiveTerminal() {
               <div className="liveMetrics">
                 <Metric label="RPM" value={selected.rpm?.toLocaleString() ?? "—"} />
                 <Metric label="Brake" value={selected.brake == null ? "—" : selected.brake ? "ON" : "OFF"} />
-                <Metric label="Active aero ch45" value={selected.aero ?? "—"} />
+                <Metric label="Aero ch45" value={selected.aero ?? "—"} />
                 <Metric label="Best Lap" value={selected.bestLap || "—"} />
                 <Metric
                   label="Tyre"
