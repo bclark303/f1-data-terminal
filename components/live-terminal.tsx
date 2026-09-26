@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   LIVE_TOPICS,
   applyLiveRecord,
@@ -41,6 +41,13 @@ type StatusPayload = {
   status?: ConnectionState;
   message?: string;
   at?: number;
+};
+
+type RadioTranscriptState = {
+  status: "loading" | "done" | "error";
+  text?: string;
+  error?: string;
+  model?: string;
 };
 
 type Point = { x: number; y: number };
@@ -429,6 +436,31 @@ export function LiveTerminal() {
   const [lastUpdate, setLastUpdate] = useState<number | null>(null);
   const [selectedNumber, setSelectedNumber] = useState<string | null>(null);
   const [positionHistory, setPositionHistory] = useState<Record<string, Point[]>>({});
+  const [radioTranscriptionConfigured, setRadioTranscriptionConfigured] = useState(false);
+  const [radioTranscriptionModel, setRadioTranscriptionModel] = useState("");
+  const [autoTranscribeRadio, setAutoTranscribeRadio] = useState(false);
+  const [radioTranscripts, setRadioTranscripts] = useState<Record<string, RadioTranscriptState>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/radio-transcript", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          configured?: boolean;
+          model?: string;
+        };
+        if (cancelled) return;
+        setRadioTranscriptionConfigured(Boolean(payload.configured));
+        setRadioTranscriptionModel(payload.model ?? "");
+      })
+      .catch(() => {
+        /* Transcription is optional; live timing should not depend on it. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const source = new EventSource("/api/live-timing");
@@ -526,6 +558,76 @@ export function LiveTerminal() {
     if (!selected) return radio;
     return [...radio].sort((a, b) => Number(b.number === selected.number) - Number(a.number === selected.number));
   }, [radio, selected]);
+
+  const transcribeRadioClip = useCallback(
+    async (clip: { path: string; text: string }) => {
+      if (!radioTranscriptionConfigured || !session?.path || !clip.path || clip.text) return;
+      const key = clip.path;
+      const current = radioTranscripts[key];
+      if (current?.status === "loading" || current?.status === "done") return;
+      setRadioTranscripts((state) => ({
+        ...state,
+        [key]: { status: "loading" },
+      }));
+      try {
+        const response = await fetch("/api/radio-transcript", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionPath: session.path,
+            clipPath: clip.path,
+          }),
+        });
+        const payload = (await response.json()) as {
+          text?: string;
+          error?: string;
+          model?: string;
+        };
+        if (!response.ok || !payload.text) {
+          throw new Error(payload.error || "Transcription failed.");
+        }
+        setRadioTranscripts((state) => ({
+          ...state,
+          [key]: {
+            status: "done",
+            text: payload.text,
+            model: payload.model,
+          },
+        }));
+      } catch (error) {
+        setRadioTranscripts((state) => ({
+          ...state,
+          [key]: {
+            status: "error",
+            error: error instanceof Error ? error.message : "Transcription failed.",
+          },
+        }));
+      }
+    },
+    [radioTranscriptionConfigured, radioTranscripts, session?.path],
+  );
+
+  useEffect(() => {
+    if (!autoTranscribeRadio || !radioTranscriptionConfigured || !session?.path) return;
+    const next = selectedRadio
+      .slice(0, 14)
+      .find(
+        (clip) =>
+          clip.path &&
+          !clip.text &&
+          radioTranscripts[clip.path]?.status !== "loading" &&
+          radioTranscripts[clip.path]?.status !== "done" &&
+          radioTranscripts[clip.path]?.status !== "error",
+      );
+    if (next) void transcribeRadioClip(next);
+  }, [
+    autoTranscribeRadio,
+    radioTranscriptionConfigured,
+    radioTranscripts,
+    selectedRadio,
+    session?.path,
+    transcribeRadioClip,
+  ]);
 
   const selectedMentions = selected
     ? raceControl.filter((item) => {
@@ -942,13 +1044,30 @@ export function LiveTerminal() {
               <span>TEAM RADIO</span>
               <strong>Latest Captures</strong>
             </div>
-            {selected && <small>{selectedEvents?.radio.length ?? 0} for {selected.tla}</small>}
+            <div className="liveRadioHeaderTools">
+              {selected && <small>{selectedEvents?.radio.length ?? 0} for {selected.tla}</small>}
+              {radioTranscriptionConfigured ? (
+                <button
+                  type="button"
+                  className={"liveAutoTranscribe " + (autoTranscribeRadio ? "active" : "")}
+                  onClick={() => setAutoTranscribeRadio((value) => !value)}
+                  title={radioTranscriptionModel ? "Model: " + radioTranscriptionModel : undefined}
+                >
+                  AUTO TRANSCRIBE {autoTranscribeRadio ? "ON" : "OFF"}
+                </button>
+              ) : (
+                <small title="Set OPENAI_API_KEY on the local server to enable speech-to-text.">
+                  TRANSCRIPTION NOT CONFIGURED
+                </small>
+              )}
+            </div>
           </div>
           <div className="liveRadioList">
             {selectedRadio.slice(0, 14).map((clip, index) => {
               const driver = driverByNumber.get(clip.number);
               const url = teamRadioUrl(session, clip);
               const isSelected = clip.number === selected?.number;
+              const transcript = clip.path ? radioTranscripts[clip.path] : undefined;
               return (
                 <div
                   className={"liveRadioItem " + (isSelected ? "selectedDriver" : "")}
@@ -979,7 +1098,35 @@ export function LiveTerminal() {
                         : "—"}
                     </span>
                   </div>
-                  {clip.text && <p>{clip.text}</p>}
+                  {clip.text ? (
+                    <p className="liveTranscript">
+                      <small>F1 TRANSCRIPT</small>
+                      {clip.text}
+                    </p>
+                  ) : transcript?.status === "done" && transcript.text ? (
+                    <p className="liveTranscript ai">
+                      <small>AI TRANSCRIPT{transcript.model ? " · " + transcript.model : ""}</small>
+                      {transcript.text}
+                    </p>
+                  ) : transcript?.status === "error" ? (
+                    <div className="liveTranscriptError">
+                      <span>{transcript.error}</span>
+                      <button type="button" onClick={() => clip.path && setRadioTranscripts((state) => {
+                        const next = { ...state };
+                        delete next[clip.path];
+                        return next;
+                      })}>RETRY</button>
+                    </div>
+                  ) : radioTranscriptionConfigured && clip.path ? (
+                    <button
+                      type="button"
+                      className="liveTranscribeButton"
+                      disabled={transcript?.status === "loading"}
+                      onClick={() => void transcribeRadioClip(clip)}
+                    >
+                      {transcript?.status === "loading" ? "TRANSCRIBING…" : "TRANSCRIBE RADIO"}
+                    </button>
+                  ) : null}
                   {url ? (
                     <audio controls preload="none" src={url}>
                       Team radio audio
