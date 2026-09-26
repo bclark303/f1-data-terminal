@@ -906,3 +906,283 @@ export function selectLiveDriverEventCounts(store: LiveTimingStore, number: stri
     radio: selectLiveTeamRadio(store).filter((clip) => clip.number === number),
   };
 }
+
+export type LiveCommentaryItem = {
+  kicker: string;
+  headline: string;
+  detail: string;
+  tone: LiveInsightTone;
+  number?: string;
+};
+
+export type LiveDriverFeedFact = {
+  feed: string;
+  label: string;
+  value: string;
+};
+
+function driverName(drivers: LiveDriverRow[], number: string) {
+  const driver = drivers.find((item) => item.number === number);
+  return driver?.tla || driver?.name || ("CAR " + number);
+}
+
+function intervalSeconds(value: string) {
+  const normalized = value.trim().replace(/^\+/, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function selectLiveCommentary(
+  store: LiveTimingStore,
+  drivers: LiveDriverRow[],
+): LiveCommentaryItem[] {
+  const items: LiveCommentaryItem[] = [];
+  if (!drivers.length) return items;
+
+  const overtakes = selectLiveOvertakes(store);
+  const latestOvertake = overtakes[0];
+  if (latestOvertake) {
+    items.push({
+      kicker: latestOvertake.lap == null ? "OVERTAKE" : "LAP " + latestOvertake.lap,
+      headline:
+        driverName(drivers, latestOvertake.overtakingNumber) +
+        " passed " +
+        driverName(drivers, latestOvertake.overtakenNumber),
+      detail: "Reported by Formula 1's OvertakeSeries feed.",
+      tone: "blue",
+      number: latestOvertake.overtakingNumber,
+    });
+  }
+
+  const closeBattle = drivers
+    .filter((driver) => driver.position !== "1" && !driver.inPit && !driver.retired && !driver.stopped)
+    .map((driver) => ({ driver, seconds: intervalSeconds(driver.interval) }))
+    .filter(
+      (row): row is { driver: LiveDriverRow; seconds: number } =>
+        row.seconds !== null && row.seconds >= 0,
+    )
+    .sort((a, b) => a.seconds - b.seconds)[0];
+  if (closeBattle && closeBattle.seconds <= 1.5) {
+    items.push({
+      kicker: closeBattle.seconds < 1 ? "SUB-SECOND BATTLE" : "CLOSE BATTLE",
+      headline:
+        (closeBattle.driver.tla || closeBattle.driver.number) +
+        " is " +
+        closeBattle.driver.interval +
+        " from the car ahead",
+      detail: closeBattle.driver.catching
+        ? "The timing feed currently marks this car as catching."
+        : "Current IntervalToPositionAhead from the timing feed.",
+      tone: closeBattle.driver.catching ? "green" : "yellow",
+      number: closeBattle.driver.number,
+    });
+  }
+
+  const fastest = drivers
+    .map((driver) => ({ driver, seconds: parseTimeSeconds(driver.bestLap) }))
+    .filter(
+      (row): row is { driver: LiveDriverRow; seconds: number } =>
+        row.seconds !== null,
+    )
+    .sort((a, b) => a.seconds - b.seconds)[0];
+  if (fastest) {
+    items.push({
+      kicker: "PACE",
+      headline:
+        (fastest.driver.tla || fastest.driver.number) +
+        " owns the quickest recorded best lap",
+      detail: fastest.driver.bestLap,
+      tone: "purple",
+      number: fastest.driver.number,
+    });
+  }
+
+  const movers = drivers
+    .map((driver) => {
+      const positions = selectLiveLapPositions(store, driver.number);
+      if (positions.length < 2) return null;
+      const start = positions[0];
+      const current = positions.at(-1) ?? start;
+      return { driver, start, current, places: start - current };
+    })
+    .filter(
+      (
+        row,
+      ): row is {
+        driver: LiveDriverRow;
+        start: number;
+        current: number;
+        places: number;
+      } => row !== null,
+    )
+    .sort((a, b) => Math.abs(b.places) - Math.abs(a.places));
+  const mover = movers[0];
+  if (mover && mover.places !== 0) {
+    items.push({
+      kicker: mover.places > 0 ? "BIGGEST GAIN" : "BIGGEST DROP",
+      headline:
+        (mover.driver.tla || mover.driver.number) +
+        (mover.places > 0
+          ? " has gained " + mover.places + " places"
+          : " has lost " + Math.abs(mover.places) + " places"),
+      detail: "LapSeries: P" + mover.start + " → P" + mover.current + ".",
+      tone: mover.places > 0 ? "green" : "yellow",
+      number: mover.driver.number,
+    });
+  }
+
+  const latestStop = selectLivePitStops(store)[0];
+  if (latestStop) {
+    items.push({
+      kicker: "PIT ACTIVITY",
+      headline:
+        driverName(drivers, latestStop.number) +
+        (latestStop.lap == null ? " recorded a pit event" : " stopped on lap " + latestStop.lap),
+      detail:
+        latestStop.duration || latestStop.pitLaneTime
+          ? "Reported time: " + (latestStop.duration || latestStop.pitLaneTime)
+          : "Pit event reported by the live timing feed.",
+      tone: "blue",
+      number: latestStop.number,
+    });
+  }
+
+  const weather = selectLiveWeather(store);
+  if (weather?.rainfall) {
+    items.push({
+      kicker: "WEATHER",
+      headline: "Rainfall is being reported at the circuit",
+      detail:
+        "Track " +
+        (weather.trackTemp || "—") +
+        "°C · air " +
+        (weather.airTemp || "—") +
+        "°C.",
+      tone: "yellow",
+    });
+  }
+
+  const track = selectLiveTrackStatus(store);
+  if (track && track.status !== "1") {
+    items.push({
+      kicker: "RACE CONTROL",
+      headline: track.label,
+      detail: "Current TrackStatus feed state.",
+      tone:
+        track.status === "5"
+          ? "yellow"
+          : track.status === "2" || track.status === "4" || track.status === "6"
+            ? "yellow"
+            : "neutral",
+    });
+  }
+
+  const pitCars = drivers.filter((driver) => driver.inPit || driver.pitOut);
+  if (pitCars.length >= 2) {
+    items.push({
+      kicker: "PIT LANE",
+      headline: pitCars.length + " cars are currently in pit activity",
+      detail: pitCars
+        .slice(0, 6)
+        .map((driver) => driver.tla || driver.number)
+        .join(" · "),
+      tone: "neutral",
+      number: pitCars[0]?.number,
+    });
+  }
+
+  return items.slice(0, 8);
+}
+
+const DRIVER_DETAIL_FEEDS = [
+  "TimingStats",
+  "DriverRaceInfo",
+  "DriverScore",
+  "DriverTracker",
+  "SPFeed",
+  "TlaRcm",
+  "TopThree",
+  "CurrentTyres",
+  "TyreStintSeries",
+  "ChampionshipPrediction",
+] as const;
+
+const FACT_SKIP_KEYS = new Set([
+  "RacingNumber",
+  "DriverNumber",
+  "CarNumber",
+  "Number",
+  "BroadcastName",
+  "FullName",
+  "TeamName",
+  "TeamColour",
+  "HeadshotUrl",
+  "Path",
+  "Url",
+]);
+
+function scalarFacts(
+  value: unknown,
+  prefix = "",
+  depth = 0,
+): Array<{ label: string; value: string }> {
+  if (depth > 2) return [];
+  const row = object(value);
+  if (!row) return [];
+  const result: Array<{ label: string; value: string }> = [];
+  for (const [key, raw] of Object.entries(row)) {
+    if (FACT_SKIP_KEYS.has(key) || raw === null || raw === undefined) continue;
+    const label = prefix ? prefix + " · " + key : key;
+    if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {
+      const text = String(raw);
+      if (!text || text.length > 120) continue;
+      result.push({ label, value: text });
+      continue;
+    }
+    if (depth < 2 && !Array.isArray(raw)) {
+      result.push(...scalarFacts(raw, label, depth + 1));
+    }
+  }
+  return result;
+}
+
+function driverFeedRecords(feed: unknown, number: string) {
+  const root = object(feed);
+  if (!root) return [];
+  const candidates: unknown[] = [
+    object(root.Lines)?.[number],
+    object(root.Drivers)?.[number],
+    object(root.Entries)?.[number],
+    root[number],
+  ];
+  for (const row of collectRecords(feed, 500)) {
+    if (racingNumber(row) === number) candidates.push(row);
+  }
+  const seen = new Set<object>();
+  return candidates.flatMap((candidate) => {
+    const row = object(candidate);
+    if (!row || seen.has(row)) return [];
+    seen.add(row);
+    return [row];
+  });
+}
+
+export function selectLiveDriverFeedFacts(
+  store: LiveTimingStore,
+  number: string,
+): LiveDriverFeedFact[] {
+  const facts: LiveDriverFeedFact[] = [];
+  const seen = new Set<string>();
+  for (const feed of DRIVER_DETAIL_FEEDS) {
+    for (const row of driverFeedRecords(store[feed], number)) {
+      for (const fact of scalarFacts(row).slice(0, 12)) {
+        const key = feed + "|" + fact.label + "|" + fact.value;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        facts.push({ feed, ...fact });
+        if (facts.length >= 36) return facts;
+      }
+    }
+  }
+  return facts;
+}
